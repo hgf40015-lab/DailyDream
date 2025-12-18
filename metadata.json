@@ -1,0 +1,7 @@
+{
+  "name": "DAILY DREAM",
+  "description": "An interactive and mystical website that analyzes users’ dreams to predict their next day's events, health, and mood. It features a multi-language interface and a 'Future Questions' section for deeper insights.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

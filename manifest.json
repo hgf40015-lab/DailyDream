@@ -1,0 +1,27 @@
+
+{
+  "short_name": "DAILY DREAM",
+  "name": "DAILY DREAM",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512"
+    },
+    {
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#1a202c",
+  "background_color": "#000000",
+  "description": "An interactive and mystical website that analyzes users’ dreams to predict their next day's events, health, and mood."
+}
