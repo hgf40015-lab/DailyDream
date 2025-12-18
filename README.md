@@ -1,20 +1,28 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
 
-# Run and deploy your AI Studio app
+# 🌙 Tushlar Tabiri — Deploy Guide
 
-This contains everything you need to run your app locally.
+Ushbu loyihani bepul hostingga joylashtirish juda oson.
 
-View your app in AI Studio: https://ai.studio/apps/drive/1KL3I6fMDTFEj_ngQ79kJ-8zBb7LVEYEU
+## 🚀 Qadam-baqadam ko'rsatma:
 
-## Run Locally
+1. **GitHub-ga yuklash:**
+   - Ushbu kodlarni o'z kompyuteringizga oling va GitHub-da yangi repozitoriy ochib yuklang.
 
-**Prerequisites:**  Node.js
+2. **Vercel orqali joylash (Eng oson yo'li):**
+   - [Vercel.com](https://vercel.com) saytiga kiring.
+   - GitHub profilingiz bilan kiring.
+   - **"Add New"** -> **"Project"** tugmasini bosing.
+   - Yuklangan repozitoriyni tanlang.
+   - **"Environment Variables"** bo'limiga o'ting:
+     - Key: `API_KEY`
+     - Value: `Sizning_Google_Gemini_API_Kalitingiz`
+   - **"Deploy"** tugmasini bosing.
 
+3. **Tayyor!**
+   - Vercel sizga bepul `.vercel.app` domenini beradi (masalan: `tushlar-tabiri.vercel.app`).
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## 🛠 Texnologiyalar:
+- **Frontend:** React, Tailwind CSS
+- **AI:** Google Gemini API
+- **Background:** Tokyo Night Aesthetic
+- **PWA:** Offline ishlash va mobil ilova sifatida o'rnatish imkoniyati.
