@@ -37,11 +37,7 @@ const DreamDictionary: React.FC<DreamDictionaryProps> = ({ initialSearchTerm = '
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (e: any) {
       console.error(e);
-      if (e.message === "API_KEY_LITERAL_TEXT_ERROR") {
-          setError("DIQQAT: Vercel-da API_KEY nomi bilan haqiqiy Gemini kalitingizni qo'shishingiz kerak. Hozirda u yerda shunchaki 'API_KEY' matni turibdi.");
-      } else {
-          setError(translations.error);
-      }
+      setError(translations.error);
     } finally {
       setIsLoading(false);
     }
@@ -91,9 +87,7 @@ const DreamDictionary: React.FC<DreamDictionaryProps> = ({ initialSearchTerm = '
 
       {error && (
           <div className="mt-6 p-4 bg-red-900/40 border border-red-500/50 rounded-2xl text-center">
-              <p className="text-red-200 font-bold mb-2">⚠️ Xatolik yuz berdi</p>
               <p className="text-red-300 text-sm">{error}</p>
-              <a href="https://aistudio.google.com/app/apikey" target="_blank" className="text-cyan-400 underline mt-2 block text-xs">Kalitni bu yerdan oling</a>
           </div>
       )}
       

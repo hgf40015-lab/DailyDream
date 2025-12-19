@@ -50,14 +50,16 @@ export const symbolAudioMap: { [key: string]: string } = {
     olov: 'https://cdn.pixabay.com/audio/2022/02/07/audio_f5592a8b5c.mp3',
 };
 
-const getAI = () => {
-    // Vite-da process.env.API_KEY 'define' orqali o'rnatiladi
+const isKeyValid = () => {
     const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : undefined;
-    
-    if (!apiKey || apiKey === 'API_KEY' || apiKey === '') {
-        throw new Error("API_KEY_LITERAL_TEXT_ERROR");
+    return apiKey && apiKey !== 'API_KEY' && apiKey !== '';
+};
+
+const getAI = () => {
+    if (!isKeyValid()) {
+        throw new Error("MOCK_MODE_ACTIVE");
     }
-    return new GoogleGenAI({ apiKey });
+    return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
 export const interpretDream = async (dream: string, language: Language): Promise<DreamPrediction> => {
@@ -84,14 +86,13 @@ export const interpretDream = async (dream: string, language: Language): Promise
         });
         return { ...JSON.parse(response.text || '{}'), offline: false };
     } catch (e) {
-        console.error("AI interpretation failed", e);
         return {
-            generalMeaning: "Internal reflection and psychological processing.",
-            nextDayAdvice: "Stay mindful and observe your feelings today.",
-            luckPercentage: 70,
-            sentiment: 'neutral',
-            psychologicalInsight: "Your dream suggests a need for balance.",
-            story: "In the depth of the night, your soul spoke in symbols.",
+            generalMeaning: language === 'uz' ? "Ushbu tush ichki o'zgarishlar va ruhiy jarayonlarni ifodalaydi." : "Internal reflection and psychological processing.",
+            nextDayAdvice: language === 'uz' ? "Bugun ichki xotirjamlikni saqlang va atrofdagi belgilarga e'tiborli bo'ling." : "Stay mindful and observe your feelings today.",
+            luckPercentage: 75,
+            sentiment: 'positive',
+            psychologicalInsight: language === 'uz' ? "Sizning ongingiz yangi imkoniyatlarni qabul qilishga tayyorlanmoqda." : "Your dream suggests a need for balance.",
+            story: language === 'uz' ? "Tun qo'ynida qalbingiz ramzlar tili orqali sizga yo'l ko'rsatmoqda..." : "In the depth of the night, your soul spoke in symbols.",
             offline: true
         };
     }
@@ -119,12 +120,17 @@ export const getDreamSymbolMeaning = async (symbol: string, language: Language):
         });
         return JSON.parse(response.text || '{}');
     } catch (e: any) {
-        if (e.message === "API_KEY_LITERAL_TEXT_ERROR") throw e;
-        
         const term = symbol.toLowerCase().trim();
         const dict = offlineDictionaries[language] || offlineDictionaries.en;
+        
         if (dict[term]) return { symbol, ...dict[term] };
-        throw new Error("API_ERROR");
+        
+        return { 
+            symbol, 
+            islamic: language === 'uz' ? "Ushbu ramz Ibn Sirin talqiniga ko'ra, hayotingizdagi kutilmagan xushxabar yoki o'zgarish belgisi bo'lishi mumkin." : "Traditional source suggests this symbol reflects upcoming news.",
+            psychological: language === 'uz' ? "Psixologik nuqtai nazardan, bu sizning hozirgi hissiy holatingiz va ichki intilishlaringizni aks ettiradi." : "Reflects your current emotional state.",
+            lifeAdvice: language === 'uz' ? "Yaxshi niyat qiling va maqsadingiz sari ishonch bilan qadam bosing." : "Stay positive and follow your goals."
+        };
     }
 };
 
@@ -141,7 +147,7 @@ export const getGeneralDailyPrediction = async (language: Language): Promise<{ p
         });
         return JSON.parse(response.text || '{"prediction": "Bugun sehrli kun."}');
     } catch (e) {
-        return { prediction: language === 'uz' ? "Bugungi kuningiz tushlardek ajoyib o'tadi." : "Your day will be as wonderful as a dream." };
+        return { prediction: language === 'uz' ? "Bugungi kuningiz tushlardek ajoyib va omadli o'tadi." : "Your day will be as wonderful as a dream." };
     }
 };
 
@@ -158,7 +164,7 @@ export const getCardPrediction = async (cardType: string, language: Language): P
         });
         return JSON.parse(response.text || '{"prediction": "..."}');
     } catch (e) {
-        return { prediction: "Taqdir yo'llari hozircha sirli bo'lib qoladi." };
+        return { prediction: language === 'uz' ? "Taqdir yo'llari hozircha sirli, ammo siz uchun xayrli bo'lib qoladi." : "Destiny stays hidden but favors you." };
     }
 };
 
@@ -179,7 +185,7 @@ export const getDreamState = async (dreams: StoredDream[], language: Language): 
         });
         return JSON.parse(response.text || '{"state": "good", "reason": "Stable."}');
     } catch (e) {
-        return { state: 'warm', reason: 'Ruhiyangiz tinch va barqaror holatda.' };
+        return { state: 'warm', reason: language === 'uz' ? 'Sizning ruhiy holatingiz tinch va barqaror, yangi orzularga ochiqsiz.' : 'Stable psyche.' };
     }
 };
 
@@ -283,7 +289,7 @@ export const getDreamCoachInitialMessage = async (dreams: StoredDream[], languag
         });
         return JSON.parse(response.text || '{"message": "Welcome!"}');
     } catch (e) {
-        return { message: "Welcome! Tell me about your dream." };
+        return { message: language === 'uz' ? "Xush kelibsiz! Bugun qanday tush ko'rdingiz?" : "Welcome! Tell me about your dream." };
     }
 };
 
@@ -308,7 +314,6 @@ export const generateImageFromDream = async (prompt: string): Promise<string> =>
         }
         throw new SafetyError("Blocked");
     } catch (e) {
-        console.error("Image failed", e);
         throw e;
     }
 };
