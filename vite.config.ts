@@ -4,7 +4,18 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    // Vercel-dagi API_KEY ni brauzer kodiga xavfsiz o'tkazish
+    'process.env.API_KEY': JSON.stringify(process.env.API_KEY)
+  },
   build: {
-    chunkSizeWarningLimit: 1000, // Increased from 500 to 1000 kB
+    chunkSizeWarningLimit: 1600, // Ogohlantirish limitini oshirish
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor': ['react', 'react-dom', '@google/genai'],
+        },
+      },
+    },
   }
 });

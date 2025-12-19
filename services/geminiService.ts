@@ -51,9 +51,10 @@ export const symbolAudioMap: { [key: string]: string } = {
 };
 
 const getAI = () => {
-    const apiKey = process.env.API_KEY;
-    if (!apiKey || apiKey === 'API_KEY') {
-        // This is a special error we catch in the UI to guide the user
+    // Vite-da process.env.API_KEY 'define' orqali o'rnatiladi
+    const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : undefined;
+    
+    if (!apiKey || apiKey === 'API_KEY' || apiKey === '') {
         throw new Error("API_KEY_LITERAL_TEXT_ERROR");
     }
     return new GoogleGenAI({ apiKey });
