@@ -16,43 +16,78 @@
         overscroll-behavior: none;
         background-color: #020204;
         cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="cyan" stroke-width="1.5"><circle cx="12" cy="12" r="6" stroke-opacity="0.8"/><circle cx="12" cy="12" r="1" fill="white" fill-opacity="0.8"/></svg>') 12 12, auto;
+        -webkit-tap-highlight-color: transparent;
       }
+      
+      /* Global Snappy Click Response */
+      button, a, select, [role="button"] {
+        cursor: pointer;
+        transition: transform 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275), filter 0.2s ease;
+        touch-action: manipulation; /* Improves touch response */
+      }
+      
+      button:active, a:active, .clickable:active, select:active {
+        transform: scale(0.92) !important;
+        filter: brightness(1.2) saturate(1.2);
+      }
+
       * {
-        transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform, filter;
+        transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, filter;
         transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);
         transition-duration: 300ms;
-        -webkit-tap-highlight-color: transparent;
-        outline: none;
       }
-      button:active, a:active, .clickable:active {
-        transform: scale(0.94) !important;
-        filter: brightness(1.2);
-      }
+
       ::-webkit-scrollbar { width: 6px; height: 6px; }
       ::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.1); }
       ::-webkit-scrollbar-thumb { background: rgba(139, 92, 246, 0.3); border-radius: 10px; }
       ::-webkit-scrollbar-thumb:hover { background: rgba(139, 92, 246, 0.6); }
+
       .text-glow { text-shadow: 0 0 10px rgba(167, 139, 250, 0.5), 0 0 20px rgba(34, 211, 238, 0.3); }
-      .bg-mood-neutral { background-color: transparent; }
-      .bg-mood-positive { background-image: radial-gradient(circle at 50% 50%, rgba(34, 197, 94, 0.08), transparent 70%); }
-      .bg-mood-negative { background-image: radial-gradient(circle at 50% 50%, rgba(124, 58, 237, 0.08), transparent 70%); }
-      .click-sparkle {
-        position: fixed; pointer-events: none; background: white; border-radius: 50%; width: 4px; height: 4px;
-        animation: float-away 0.6s ease-out forwards; z-index: 9999; box-shadow: 0 0 8px var(--glow-color);
+
+      /* Improved Mystical Particle Effects */
+      .click-particle {
+        position: fixed;
+        pointer-events: none;
+        border-radius: 50%;
+        z-index: 10000;
+        animation: particle-fly 0.8s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
       }
-      @keyframes float-away {
-        0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-        100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0); opacity: 0; }
+
+      @keyframes particle-fly {
+        0% {
+          transform: translate(-50%, -50%) scale(1);
+          opacity: 1;
+        }
+        100% {
+          transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0);
+          opacity: 0;
+        }
       }
-      .click-ripple {
-        position: fixed; border-radius: 50%;
-        background: radial-gradient(circle, transparent 30%, rgba(139, 92, 246, 0.4) 60%, rgba(34, 211, 238, 0.6) 70%, transparent 80%);
-        transform: translate(-50%, -50%) scale(0.5); opacity: 0.8; pointer-events: none; z-index: 9998;
-        animation: ripple-burst 0.5s cubic-bezier(0, 0, 0.2, 1) forwards;
+
+      .click-ring {
+        position: fixed;
+        border: 2px solid white;
+        border-radius: 50%;
+        pointer-events: none;
+        z-index: 9999;
+        animation: ring-expand 0.5s ease-out forwards;
       }
-      @keyframes ripple-burst {
-        0% { transform: translate(-50%, -50%) scale(0.2); opacity: 0.8; }
-        100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; }
+
+      @keyframes ring-expand {
+        0% {
+          width: 0;
+          height: 0;
+          transform: translate(-50%, -50%);
+          opacity: 1;
+          border-width: 4px;
+        }
+        100% {
+          width: 100px;
+          height: 100px;
+          transform: translate(-50%, -50%);
+          opacity: 0;
+          border-width: 1px;
+        }
       }
     </style>
   <script type="importmap">
@@ -77,35 +112,56 @@
           navigator.serviceWorker.register('/sw.js').catch(() => {});
         });
       }
-      const createClickEffects = (x, y) => {
-        const ripple = document.createElement('div');
-        ripple.classList.add('click-ripple');
-        ripple.style.left = x + 'px';
-        ripple.style.top = y + 'px';
-        ripple.style.width = '80px';
-        ripple.style.height = '80px';
-        document.body.appendChild(ripple);
-        setTimeout(() => ripple.remove(), 500);
-        const colors = ['#a78bfa', '#22d3ee', '#f472b6', '#ffffff'];
-        const particleCount = 6;
+
+      const createMysticalEffect = (x, y) => {
+        // 1. Create expanding ring
+        const ring = document.createElement('div');
+        ring.className = 'click-ring';
+        ring.style.left = x + 'px';
+        ring.style.top = y + 'px';
+        ring.style.borderColor = Math.random() > 0.5 ? '#a78bfa' : '#22d3ee';
+        document.body.appendChild(ring);
+        setTimeout(() => ring.remove(), 500);
+
+        // 2. Create particles
+        const colors = ['#a78bfa', '#22d3ee', '#f472b6', '#fbbf24', '#ffffff'];
+        const particleCount = 8;
+        
         for (let i = 0; i < particleCount; i++) {
-          const sparkle = document.createElement('div');
-          sparkle.classList.add('click-sparkle');
+          const p = document.createElement('div');
+          p.className = 'click-particle';
+          
+          const size = Math.random() * 6 + 2 + 'px';
+          const color = colors[Math.floor(Math.random() * colors.length)];
           const angle = Math.random() * Math.PI * 2;
-          const velocity = Math.random() * 60 + 30; 
-          sparkle.style.left = x + 'px';
-          sparkle.style.top = y + 'px';
-          sparkle.style.setProperty('--tx', (Math.cos(angle) * velocity) + 'px');
-          sparkle.style.setProperty('--ty', (Math.sin(angle) * velocity) + 'px');
-          sparkle.style.setProperty('--glow-color', colors[Math.floor(Math.random() * colors.length)]);
-          sparkle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-          document.body.appendChild(sparkle);
-          setTimeout(() => sparkle.remove(), 600);
+          const distance = Math.random() * 80 + 40;
+          
+          p.style.width = size;
+          p.style.height = size;
+          p.style.backgroundColor = color;
+          p.style.boxShadow = `0 0 10px ${color}`;
+          p.style.left = x + 'px';
+          p.style.top = y + 'px';
+          p.style.setProperty('--tx', Math.cos(angle) * distance + 'px');
+          p.style.setProperty('--ty', Math.sin(angle) * distance + 'px');
+          
+          document.body.appendChild(p);
+          setTimeout(() => p.remove(), 800);
         }
       };
-      document.addEventListener('click', (e) => {
-        createClickEffects(e.clientX, e.clientY);
-      });
+
+      // Handle both Mouse and Touch for instant feedback
+      const handleInteraction = (e) => {
+        const x = e.clientX || (e.touches && e.touches[0].clientX);
+        const y = e.clientY || (e.touches && e.touches[0].clientY);
+        if (x && y) createMysticalEffect(x, y);
+      };
+
+      document.addEventListener('mousedown', handleInteraction);
+      document.addEventListener('touchstart', (e) => {
+        // Trigger effect but don't prevent default to keep scrolling/clicking working
+        handleInteraction(e);
+      }, { passive: true });
     </script>
   </body>
 </html>

@@ -52,9 +52,11 @@ const DreamCoach: React.FC = () => {
             setConversation(prev => [...prev, { role: 'model', text: 'Configuration error: API Key is missing.'}]);
             return;
         }
+        // Fix: Create fresh GoogleGenAI instance for selected API key support
         const ai = new GoogleGenAI({ apiKey });
+        // Fix: Update model to gemini-3-flash-preview
         const chatSession = ai.chats.create({
-          model: 'gemini-2.5-flash', // Flash is sufficient for conversation
+          model: 'gemini-3-flash-preview',
           config: {
             // STRICT DREAM COACH SYSTEM INSTRUCTION
             systemInstruction: `You are a dedicated AI Dream Coach and Symbolism Expert named 'Murabbiy'. You speak in ${language}.

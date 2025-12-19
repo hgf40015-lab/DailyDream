@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import { LanguageContext } from '../contexts/LanguageContext';
 import { GoogleGenAI, Chat, HarmCategory, HarmBlockThreshold } from '@google/genai';
@@ -31,6 +32,7 @@ const PremiumTherapist: React.FC = () => {
       setConversation(prev => [...prev, { role: 'model', text: 'Configuration error: API Key is missing.'}]);
       return;
     }
+    // Fix: Create fresh GoogleGenAI instance for selected API key support
     const ai = new GoogleGenAI({ apiKey });
     
     const safetySettings = [
@@ -52,8 +54,9 @@ const PremiumTherapist: React.FC = () => {
         },
     ];
 
+    // Fix: Update model to gemini-3-pro-preview
     const chatSession = ai.chats.create({
-      model: 'gemini-2.5-pro',
+      model: 'gemini-3-pro-preview',
       config: {
         systemInstruction: `You are a premium, empathetic AI Dream Therapist speaking in ${language}. Your name is Morpheus. You help users explore the deeper meanings of their dreams by combining psychoanalytic (Jungian, Freudian) and spiritual perspectives. Your goal is NOT just to interpret symbols, but to guide the user to their own insights. Ask open-ended, clarifying questions to understand their feelings and connect the dream to their waking life. Maintain a calm, wise, and supportive tone. Never provide medical advice. Strictly avoid generating any harmful, unethical, or inappropriate content. Start the conversation by introducing yourself and gently asking what's on their mind.`,
         safetySettings,

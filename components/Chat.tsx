@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import { LanguageContext } from '../contexts/LanguageContext';
 import { GoogleGenAI, Chat, HarmCategory, HarmBlockThreshold } from '@google/genai';
@@ -34,6 +35,7 @@ const ChatComponent: React.FC = () => {
       setConversation(prev => [...prev, { role: 'model', text: 'Configuration error: API Key is missing.'}]);
       return;
     }
+    // Fix: Create fresh GoogleGenAI instance for selected API key support
     const ai = new GoogleGenAI({ apiKey });
 
     const safetySettings = [
@@ -55,8 +57,9 @@ const ChatComponent: React.FC = () => {
         },
     ];
 
+    // Fix: Update model to gemini-3-flash-preview
     const chatSession = ai.chats.create({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       config: {
         systemInstruction: `You are a friendly, helpful, and slightly mystical AI assistant designed for a dream analysis website, speaking in ${language}. Your name is Aura. Engage the user in open-ended conversation on any topic they wish to discuss. Be curious, positive, and insightful. Your purpose is to be a pleasant conversational partner. Strictly avoid generating any harmful, unethical, sexually explicit, or otherwise inappropriate content. If a user asks for such content, politely decline and steer the conversation to a safe topic. Start the conversation by introducing yourself and asking what's on the user's mind.`,
         safetySettings,

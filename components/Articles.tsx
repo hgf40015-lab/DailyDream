@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import { LanguageContext } from '../contexts/LanguageContext';
 import { GoogleGenAI, Chat, HarmCategory, HarmBlockThreshold } from '@google/genai';
@@ -31,6 +32,7 @@ const Articles: React.FC = () => {
       setConversation(prev => [...prev, { role: 'model', text: 'Configuration error: API Key is missing.' }]);
       return;
     }
+    // Fix: Create fresh GoogleGenAI instance for selected API key support
     const ai = new GoogleGenAI({ apiKey });
 
     const safetySettings = [
@@ -52,8 +54,9 @@ const Articles: React.FC = () => {
         },
     ];
     
+    // Fix: Update model to gemini-3-flash-preview
     const chatSession = ai.chats.create({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       config: {
         systemInstruction: `You are Ziyo, an empathetic and highly motivational AI companion on a dream analysis website, speaking in ${language}. Your name means 'light' in Uzbek. Your purpose is to be a source of inspiration, warmth, and encouragement. Use a gentle, positive, and supportive tone. Ask insightful, open-ended questions to help users explore their feelings, overcome self-doubt, and find motivation to pursue their goals. Celebrate their small wins and offer comforting words for their struggles. Your goal is to make the user feel heard, valued, and empowered. Strictly avoid generating any harmful, unethical, or inappropriate content. Start the conversation by introducing yourself and gently asking what's on their mind or what they hope to achieve today.`,
         safetySettings,
