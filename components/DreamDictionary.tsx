@@ -16,7 +16,6 @@ const DreamDictionary: React.FC<DreamDictionaryProps> = ({ initialSearchTerm = '
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Auto-search if initialSearchTerm exists and is different from current result
   useEffect(() => {
       if (initialSearchTerm && initialSearchTerm.trim() !== '' && (!result || result.symbol.toLowerCase() !== initialSearchTerm.toLowerCase())) {
           setSymbol(initialSearchTerm);
@@ -38,8 +37,8 @@ const DreamDictionary: React.FC<DreamDictionaryProps> = ({ initialSearchTerm = '
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (e: any) {
       console.error(e);
-      if (e.message && e.message.includes("API Key")) {
-          setError("API Kalit topilmadi yoki xato. Iltimos, Vercel sozlamalarini tekshiring.");
+      if (e.message === "API_KEY_LITERAL_TEXT_ERROR") {
+          setError("DIQQAT: Vercel-da API_KEY nomi bilan haqiqiy Gemini kalitingizni qo'shishingiz kerak. Hozirda u yerda shunchaki 'API_KEY' matni turibdi.");
       } else {
           setError(translations.error);
       }
@@ -79,7 +78,7 @@ const DreamDictionary: React.FC<DreamDictionaryProps> = ({ initialSearchTerm = '
         <button
           onClick={() => handleSearch()}
           disabled={isLoading || !symbol.trim()}
-          className="px-8 py-3 text-xl font-bold text-white bg-gradient-to-r from-purple-600 to-cyan-500 rounded-full shadow-lg hover:shadow-cyan-500/50 transform hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100 disabled:shadow-none"
+          className="px-8 py-3 text-xl font-bold text-white bg-gradient-to-r from-purple-600 to-cyan-500 rounded-full shadow-lg hover:shadow-cyan-500/50 transform hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isLoading ? (
               <span className="flex items-center gap-2">
@@ -94,6 +93,7 @@ const DreamDictionary: React.FC<DreamDictionaryProps> = ({ initialSearchTerm = '
           <div className="mt-6 p-4 bg-red-900/40 border border-red-500/50 rounded-2xl text-center">
               <p className="text-red-200 font-bold mb-2">⚠️ Xatolik yuz berdi</p>
               <p className="text-red-300 text-sm">{error}</p>
+              <a href="https://aistudio.google.com/app/apikey" target="_blank" className="text-cyan-400 underline mt-2 block text-xs">Kalitni bu yerdan oling</a>
           </div>
       )}
       
