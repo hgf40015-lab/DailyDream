@@ -52,12 +52,14 @@ export const symbolAudioMap: { [key: string]: string } = {
 
 const isKeyValid = () => {
     const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : undefined;
-    return apiKey && apiKey !== 'API_KEY' && apiKey !== '';
+    // Vercel-da kalit build paytida o'tadi, biz uning mavjudligini va uzunligini tekshiramiz
+    return apiKey && apiKey.length > 20 && apiKey !== 'API_KEY' && apiKey.startsWith('AIza');
 };
 
 const getAI = () => {
     if (!isKeyValid()) {
-        throw new Error("MOCK_MODE_ACTIVE");
+        console.error("DEBUG: API Key is missing or invalid in the environment.");
+        throw new Error("NO_VALID_KEY");
     }
     return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
@@ -84,15 +86,22 @@ export const interpretDream = async (dream: string, language: Language): Promise
                 }
             },
         });
-        return { ...JSON.parse(response.text || '{}'), offline: false };
-    } catch (e) {
+        
+        const data = JSON.parse(response.text || '{}');
+        return { ...data, offline: false };
+    } catch (e: any) {
+        console.warn("InterpretDream Failure Reason:", e.message || e);
+        
+        // Agar xato kalitdan bo'lsa, foydalanuvchiga bildirish uchun logga yozamiz
+        const isApiKeyError = e.message === "NO_VALID_KEY" || (e.message && e.message.includes("API key"));
+        
         return {
-            generalMeaning: language === 'uz' ? "Ushbu tush ichki o'zgarishlar va ruhiy jarayonlarni ifodalaydi." : "Internal reflection and psychological processing.",
-            nextDayAdvice: language === 'uz' ? "Bugun ichki xotirjamlikni saqlang va atrofdagi belgilarga e'tiborli bo'ling." : "Stay mindful and observe your feelings today.",
-            luckPercentage: 75,
-            sentiment: 'positive',
-            psychologicalInsight: language === 'uz' ? "Sizning ongingiz yangi imkoniyatlarni qabul qilishga tayyorlanmoqda." : "Your dream suggests a need for balance.",
-            story: language === 'uz' ? "Tun qo'ynida qalbingiz ramzlar tili orqali sizga yo'l ko'rsatmoqda..." : "In the depth of the night, your soul spoke in symbols.",
+            generalMeaning: language === 'uz' ? (isApiKeyError ? "API kaliti sozlanmagan. Iltimos, Vercel sozlamalarini tekshiring." : "Tush ichki dunyongizdagi o'zgarishlarni aks ettirmoqda.") : "Analyzing through fallback logic.",
+            nextDayAdvice: language === 'uz' ? "Kuningizni tinch va xotirjam o'tkazishga harakat qiling." : "Stay mindful today.",
+            luckPercentage: 70,
+            sentiment: 'neutral',
+            psychologicalInsight: language === 'uz' ? "Sizning ongingiz yangi ma'lumotlarni qayta ishlamoqda." : "Subconscious processing.",
+            story: language === 'uz' ? "Sehrli tushlar olami sizga yangi imkoniyatlar eshigini ochmoqda..." : "The world of dreams speaks in symbols.",
             offline: true
         };
     }
@@ -127,9 +136,9 @@ export const getDreamSymbolMeaning = async (symbol: string, language: Language):
         
         return { 
             symbol, 
-            islamic: language === 'uz' ? "Ushbu ramz Ibn Sirin talqiniga ko'ra, hayotingizdagi kutilmagan xushxabar yoki o'zgarish belgisi bo'lishi mumkin." : "Traditional source suggests this symbol reflects upcoming news.",
-            psychological: language === 'uz' ? "Psixologik nuqtai nazardan, bu sizning hozirgi hissiy holatingiz va ichki intilishlaringizni aks ettiradi." : "Reflects your current emotional state.",
-            lifeAdvice: language === 'uz' ? "Yaxshi niyat qiling va maqsadingiz sari ishonch bilan qadam bosing." : "Stay positive and follow your goals."
+            islamic: language === 'uz' ? "Ushbu ramz an'anaviy talqinlarga ko'ra yaxshilikka yo'yiladi." : "Traditional symbol of positive change.",
+            psychological: language === 'uz' ? "Bu tush hissiy muvozanatga intilish belgisi bo'lishi mumkin." : "Reflects emotional state.",
+            lifeAdvice: language === 'uz' ? "Maqsadingiz sari ishonch bilan qadam bosing." : "Follow your goals with confidence."
         };
     }
 };

@@ -69,6 +69,7 @@ const DreamInterpreter: React.FC<DreamInterpreterProps> = ({ setCurrentView, set
                 const result: DreamPrediction = await interpretDream(activeDreamText, language);
                 setPrediction(result);
                 if (result.offline) setIsOfflineResult(true);
+                else setIsOfflineResult(false);
             } catch (e) {
                 console.error("Translation refresh failed", e);
             } finally {
@@ -157,42 +158,43 @@ const DreamInterpreter: React.FC<DreamInterpreterProps> = ({ setCurrentView, set
       setActiveDreamText(dream);
       lastLanguageRef.current = language;
 
-      if (result.offline) setIsOfflineResult(true);
+      if (result.offline) {
+          setIsOfflineResult(true);
+      } else {
+          setIsOfflineResult(false);
+          // Only save to history if it's a real AI result to avoid cluttering with generic messages
+          const savedDreams = safeJSONParse('user-dreams', []);
+          const newDreamEntry: StoredDream = { 
+            id: Date.now().toString(), 
+            date: new Date().toISOString(), 
+            dream, 
+            sentiment: result.sentiment 
+          };
+          const updatedDreams = [...savedDreams, newDreamEntry];
+          localStorage.setItem('user-dreams', JSON.stringify(updatedDreams));
+
+          // Add points
+          const currentPoints = parseInt(localStorage.getItem('dream-points') || '0', 10);
+          const newPoints = currentPoints + 10;
+          localStorage.setItem('dream-points', newPoints.toString());
+      }
       
       playSymbolSound(dream);
       
-      // Save Dream History
-      const savedDreams = safeJSONParse('user-dreams', []);
-      const newDreamEntry: StoredDream = { 
-        id: Date.now().toString(), 
-        date: new Date().toISOString(), 
-        dream, 
-        sentiment: result.sentiment 
-      };
-      const updatedDreams = [...savedDreams, newDreamEntry];
-      localStorage.setItem('user-dreams', JSON.stringify(updatedDreams));
-
-      // Add points
-      const currentPoints = parseInt(localStorage.getItem('dream-points') || '0', 10);
-      const newPoints = currentPoints + 10;
-      localStorage.setItem('dream-points', newPoints.toString());
-      
-      // Improved Streak Logic
+      // Streak Logic
       const streakData = safeJSONParse('dream-streak', { lastDate: null, count: 0 });
-      const todayStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      const todayStr = new Date().toISOString().split('T')[0];
       const lastDateStr = streakData.lastDate ? streakData.lastDate.split('T')[0] : null;
       
-      if (lastDateStr === todayStr) {
-        // Already logged today, do nothing
-      } else {
+      if (lastDateStr !== todayStr) {
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
         const yesterdayStr = yesterday.toISOString().split('T')[0];
 
         if (lastDateStr === yesterdayStr) {
-            streakData.count++; // Consecutive day
+            streakData.count++;
         } else {
-            streakData.count = 1; // Broken streak or first time
+            streakData.count = 1;
         }
         streakData.lastDate = new Date().toISOString();
       }
@@ -212,7 +214,7 @@ const DreamInterpreter: React.FC<DreamInterpreterProps> = ({ setCurrentView, set
 
   const handleMicClick = () => {
     if (!recognition) {
-      alert("Speech recognition is not supported in your browser. Please try Chrome or Safari.");
+      alert("Speech recognition is not supported in your browser.");
       return;
     }
     if (isListening) {
@@ -278,13 +280,11 @@ const DreamInterpreter: React.FC<DreamInterpreterProps> = ({ setCurrentView, set
           disabled={isLoading}
         />
         
-        {/* Buttons inside Textarea */}
         <div className="absolute top-2 right-2 flex flex-col gap-2">
             {dream && (
                 <button
                     onClick={handleClearText}
                     className="p-2 rounded-full bg-gray-700/50 hover:bg-gray-600/80 text-gray-300 transition-colors"
-                    title="Clear"
                 >
                     <span className="w-5 h-5 block"><TrashIcon /></span>
                 </button>
@@ -295,7 +295,6 @@ const DreamInterpreter: React.FC<DreamInterpreterProps> = ({ setCurrentView, set
                 onClick={handleMicClick}
                 className={`p-2 rounded-full transition-all duration-300 shadow-lg ${isListening ? 'bg-red-500 text-white animate-pulse ring-2 ring-red-400' : 'bg-purple-500/80 text-white hover:bg-purple-600'}`}
                 disabled={isLoading}
-                title="Voice Input"
             >
                 <MicrophoneIcon />
             </button>
@@ -325,8 +324,8 @@ const DreamInterpreter: React.FC<DreamInterpreterProps> = ({ setCurrentView, set
       {error && <p className="text-center text-red-400 mt-4 bg-red-900/20 p-2 rounded">{error}</p>}
       
       {isOfflineResult && (
-          <div className="mt-4 p-3 bg-yellow-900/50 border border-yellow-400/50 rounded-lg text-center text-yellow-200">
-              {translations.offlineInterpretationNotice}
+          <div className="mt-4 p-3 bg-yellow-900/50 border border-yellow-400/50 rounded-lg text-center text-yellow-200 animate-pulse">
+              ⚠️ Diqqat: Tizim hozircha cheklangan rejimda ishlamoqda. Iltimos, Vercel-da API_KEY to'g'ri kiritilganini va sayt Redeploy qilinganini tekshiring.
           </div>
       )}
 
@@ -348,7 +347,6 @@ const DreamInterpreter: React.FC<DreamInterpreterProps> = ({ setCurrentView, set
           </h3>
           
           <div className="space-y-8">
-             {/* Story Section */}
              <div className="bg-gray-900/40 p-6 rounded-2xl border border-white/5">
                 <div className="flex items-center gap-3 mb-3">
                     <div className="w-6 h-6 text-purple-400"><FutureIcon /></div>
@@ -358,7 +356,6 @@ const DreamInterpreter: React.FC<DreamInterpreterProps> = ({ setCurrentView, set
              </div>
 
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 {/* Meaning */}
                  <div className="flex items-start space-x-4">
                     <div className="flex-shrink-0 w-10 h-10 bg-cyan-900/30 rounded-full flex items-center justify-center text-cyan-300 mt-1 border border-cyan-500/30"><SummaryIcon /></div>
                     <div>
@@ -367,7 +364,6 @@ const DreamInterpreter: React.FC<DreamInterpreterProps> = ({ setCurrentView, set
                     </div>
                   </div>
 
-                  {/* Advice */}
                   <div className="flex items-start space-x-4">
                     <div className="flex-shrink-0 w-10 h-10 bg-green-900/30 rounded-full flex items-center justify-center text-green-300 mt-1 border border-green-500/30"><NextDayIcon /></div>
                     <div>
@@ -376,7 +372,6 @@ const DreamInterpreter: React.FC<DreamInterpreterProps> = ({ setCurrentView, set
                     </div>
                   </div>
 
-                  {/* Psychology */}
                    <div className="flex items-start space-x-4">
                     <div className="flex-shrink-0 w-10 h-10 bg-pink-900/30 rounded-full flex items-center justify-center text-pink-300 mt-1 border border-pink-500/30"><PsychologyIcon /></div>
                     <div>
@@ -385,7 +380,6 @@ const DreamInterpreter: React.FC<DreamInterpreterProps> = ({ setCurrentView, set
                     </div>
                   </div>
 
-                  {/* Luck */}
                   <div className="flex items-start space-x-4">
                     <div className="flex-shrink-0 w-10 h-10 bg-yellow-900/30 rounded-full flex items-center justify-center text-yellow-300 mt-1 border border-yellow-500/30"><MoodIcon /></div>
                     <div className="w-full">
