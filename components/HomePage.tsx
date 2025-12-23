@@ -17,12 +17,22 @@ const HomePage: React.FC<HomePageProps> = ({ setCurrentView, userFullName, onSea
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Default popular searches based on language
+  // Har safar kirganda o'zgarib turadigan kengaytirilgan tushlar ombori
   const trendingSearches = React.useMemo(() => {
-      const uzTrends = ["Suv", "Ilon", "Tish", "Uchish", "Ot", "Chaqaloq", "Olov"];
-      const enTrends = ["Water", "Snake", "Teeth", "Flying", "Horse", "Baby", "Fire"];
-      return language === 'uz' ? uzTrends : enTrends;
-  }, [language]);
+      const uzPool = [
+          "Suv", "Ilon", "Tish", "Uchish", "Ot", "Chaqaloq", "Olov", "Pul", "Kitob", "Baliq", 
+          "Qor", "Yomg'ir", "Dengiz", "Daraxt", "Do'st", "Mashina", "Non", "Yulduz", "Oy", "Tuxum"
+      ];
+      const enPool = [
+          "Water", "Snake", "Teeth", "Flying", "Horse", "Baby", "Fire", "Money", "Book", "Fish", 
+          "Snow", "Rain", "Sea", "Tree", "Friend", "Car", "Bread", "Star", "Moon", "Egg"
+      ];
+      
+      const pool = language === 'uz' ? uzPool : enPool;
+      
+      // Tasodifiy 7 tasini tanlash
+      return [...pool].sort(() => 0.5 - Math.random()).slice(0, 7);
+  }, [language]); // Faqat til o'zgarganda yoki sahifa qayta yuklanganda hisoblanadi
 
   useEffect(() => {
     const fetchPrediction = async () => {

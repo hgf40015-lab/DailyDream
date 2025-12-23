@@ -16,15 +16,16 @@ interface CardData {
 interface LastPickedCard {
     type: CardType;
     prediction: string;
+    date: string;
 }
 
-// Pseudo-random generator seeded by date string
+// Har kuni kartalar joyini bir xil (lekin yangicha) aralashtirish uchun Seeded Random funksiyasi
 const seededRandom = (seed: string) => {
     let hash = 0;
     for (let i = 0; i < seed.length; i++) {
         const char = seed.charCodeAt(i);
         hash = (hash << 5) - hash + char;
-        hash = hash & hash;
+        hash = hash & hash; // Convert to 32bit integer
     }
     const x = Math.sin(hash) * 10000;
     return x - Math.floor(x);
@@ -33,7 +34,7 @@ const seededRandom = (seed: string) => {
 const shuffleArray = <T,>(array: T[], seed: string): T[] => {
     const shuffled = [...array];
     for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(seededRandom(seed + i) * (i + 1));
+        const j = Math.floor(seededRandom(seed + i.toString()) * (i + 1));
         [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
     return shuffled;
@@ -45,28 +46,8 @@ const DreamCards: React.FC = () => {
   const [chosenCard, setChosenCard] = useState<CardType | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [canPick, setCanPick] = useState(false);
+  const [canPickToday, setCanPickToday] = useState(false);
   const [lastPickedCard, setLastPickedCard] = useState<LastPickedCard | null>(null);
-
-  useEffect(() => {
-    const lastPickTime = localStorage.getItem('last-card-pick-time');
-    const lastCardDataRaw = localStorage.getItem('last-picked-card-data');
-
-    if (lastPickTime && lastCardDataRaw) {
-      const timeDiff = new Date().getTime() - parseInt(lastPickTime, 10);
-      // Check if it's a new day (simple 24h check for now, or use date string comparison)
-      if (timeDiff < 24 * 60 * 60 * 1000) {
-        setCanPick(false);
-        setLastPickedCard(JSON.parse(lastCardDataRaw));
-      } else {
-        setCanPick(true);
-        localStorage.removeItem('last-card-pick-time');
-        localStorage.removeItem('last-picked-card-data');
-      }
-    } else {
-      setCanPick(true);
-    }
-  }, []);
 
   const rawCardTypes: CardData[] = [
     { type: 'Love', label: translations.cardLove, icon: <LoveCardIcon />, color: "from-pink-500 to-rose-500" },
@@ -80,38 +61,64 @@ const DreamCards: React.FC = () => {
     { type: 'Health', label: translations.cardHealth, icon: <HealthCardIcon />, color: "from-green-400 to-green-600" }
   ];
 
-  // Shuffle cards based on today's date so they change every day
+  // Bugungi sana asosida kartalarni aralashtirish
   const cardTypes = useMemo(() => {
-      const today = new Date().toISOString().split('T')[0];
-      return shuffleArray(rawCardTypes, today);
-  }, [translations]); // Re-shuffle if translations change (language switch)
+      const todayString = new Date().toISOString().split('T')[0]; // "2025-05-24"
+      return shuffleArray(rawCardTypes, todayString);
+  }, [translations]);
+
+  useEffect(() => {
+    const checkDailyLimit = () => {
+        const lastCardDataRaw = localStorage.getItem('last-picked-card-data');
+        const todayString = new Date().toISOString().split('T')[0];
+
+        if (lastCardDataRaw) {
+            const data: LastPickedCard = JSON.parse(lastCardDataRaw);
+            if (data.date === todayString) {
+                setCanPickToday(false);
+                setLastPickedCard(data);
+                setPrediction(data.prediction);
+            } else {
+                setCanPickToday(true);
+            }
+        } else {
+            setCanPickToday(true);
+        }
+    };
+
+    checkDailyLimit();
+  }, []);
 
   const handleCardPick = async (cardType: CardType) => {
-    if (!canPick || isLoading || !language || chosenCard) return;
+    if (!canPickToday || isLoading || !language || chosenCard) return;
 
     setIsLoading(true);
     setError(null);
-    setPrediction(null);
     setChosenCard(cardType);
     
     try {
       const result = await getCardPrediction(cardType, language);
-      setPrediction(result.prediction);
-      const cardDataToSave = { type: cardType, prediction: result.prediction };
-      localStorage.setItem('last-card-pick-time', new Date().getTime().toString());
-      localStorage.setItem('last-picked-card-data', JSON.stringify(cardDataToSave));
+      const todayString = new Date().toISOString().split('T')[0];
       
+      const cardDataToSave = { 
+          type: cardType, 
+          prediction: result.prediction, 
+          date: todayString 
+      };
+
+      // Ma'lumotlarni saqlash
+      localStorage.setItem('last-picked-card-data', JSON.stringify(cardDataToSave));
+      setPrediction(result.prediction);
+      
+      // Animatsiyadan so'ng holatni yangilash
       setTimeout(() => {
-        setCanPick(false);
+        setCanPickToday(false);
         setLastPickedCard(cardDataToSave);
-      }, 2000); // Delay to allow animation and reading
+      }, 1500);
 
     } catch (e) {
       setError(translations.error);
-      setTimeout(() => {
-        setChosenCard(null); // Allow picking again on error
-        setError(null);
-      }, 2000);
+      setChosenCard(null);
       console.error(e);
     } finally {
       setIsLoading(false);
@@ -120,81 +127,99 @@ const DreamCards: React.FC = () => {
 
   const getCardByType = (type: CardType) => rawCardTypes.find(c => c.type === type)!;
 
-  const renderSingleCard = (card: CardData) => (
-      <div className="w-full max-w-sm mx-auto h-[28rem] bg-gray-900 rounded-3xl border-2 border-cyan-400/50 shadow-[0_0_50px_rgba(34,211,238,0.2)] flex flex-col items-center justify-center text-center animate-fade-in-up relative overflow-hidden">
-        {/* Background glow */}
-        <div className={`absolute inset-0 bg-gradient-to-b ${card.color} opacity-10`}></div>
+  const renderActiveResult = (card: CardData) => (
+      <div className="w-full max-w-sm mx-auto bg-gray-900 rounded-[2.5rem] border-2 border-cyan-400/50 shadow-[0_0_60px_rgba(34,211,238,0.2)] flex flex-col items-center justify-center text-center animate-fade-in-up p-8 relative overflow-hidden h-[500px]">
+        <div className={`absolute inset-0 bg-gradient-to-b ${card.color} opacity-10 animate-pulse`}></div>
         
-        <div className={`w-28 h-28 mb-6 text-white p-5 rounded-full bg-gradient-to-br ${card.color} shadow-lg`}>
+        <div className={`w-28 h-28 mb-6 text-white p-6 rounded-full bg-gradient-to-br ${card.color} shadow-[0_0_20px_rgba(255,255,255,0.2)] transform hover:scale-110 transition-transform duration-500`}>
           {card.icon}
         </div>
-        <h3 className={`text-3xl font-black mb-6 bg-clip-text text-transparent bg-gradient-to-r ${card.color}`}>{card.label}</h3>
-        <div className="px-6 flex-grow flex items-center">
-             <p className="text-lg md:text-xl text-gray-100 font-serif italic leading-relaxed">"{lastPickedCard?.prediction}"</p>
+        
+        <h3 className={`text-3xl font-black mb-6 bg-clip-text text-transparent bg-gradient-to-r ${card.color} tracking-tighter`}>{card.label}</h3>
+        
+        <div className="bg-white/5 rounded-2xl p-6 border border-white/5 w-full flex-grow flex items-center">
+             <p className="text-xl text-gray-100 font-serif italic leading-relaxed drop-shadow-sm">
+                "{prediction}"
+             </p>
         </div>
-        <p className="text-cyan-400/70 mt-6 font-bold uppercase tracking-widest text-xs mb-6">{translations.comeBackTomorrow}</p>
+        
+        <p className="text-cyan-400/60 mt-8 font-bold uppercase tracking-[0.2em] text-[10px]">{translations.comeBackTomorrow}</p>
       </div>
   );
 
   return (
-    <div className="max-w-5xl mx-auto flex flex-col items-center justify-center min-h-[70vh] p-2 md:p-4">
-      <div className="text-center mb-8 md:mb-12">
-        <h2 className="text-3xl md:text-4xl font-extrabold text-glow bg-clip-text text-transparent bg-gradient-to-r from-purple-200 to-cyan-200 mb-2">{translations.cardsTitle}</h2>
-        <p className="text-gray-400 text-base md:text-lg">
-            {canPick && !chosenCard ? translations.pickACard : translations.cardsSubtitle}
+    <div className="max-w-5xl mx-auto py-4 px-2">
+      <div className="text-center mb-10">
+        <h2 className="text-4xl md:text-5xl font-black text-glow bg-clip-text text-transparent bg-gradient-to-r from-purple-200 via-cyan-100 to-purple-200 mb-4 animate-gradient-x">
+            {translations.cardsTitle}
+        </h2>
+        <p className="text-gray-400 text-lg max-w-xl mx-auto">
+            {canPickToday ? translations.pickACard : translations.comeBackTomorrow}
         </p>
       </div>
       
-      {!canPick && lastPickedCard ? (
-         renderSingleCard(getCardByType(lastPickedCard.type))
+      {!canPickToday && lastPickedCard ? (
+         renderActiveResult(getCardByType(lastPickedCard.type))
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 [perspective:1000px] w-full justify-items-center">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 md:gap-8 [perspective:2000px] w-full justify-items-center">
           {cardTypes.map((card, index) => (
             <div key={card.type}
                  onClick={() => handleCardPick(card.type)}
-                 className={`relative w-full aspect-[2/3] max-w-[160px] sm:max-w-[180px] md:max-w-[200px] rounded-xl md:rounded-2xl cursor-pointer transition-all duration-700 [transform-style:preserve-3d] group
-                   ${canPick && !chosenCard ? "hover:-translate-y-4 hover:shadow-[0_20px_40px_rgba(0,0,0,0.5)]" : ""}
+                 className={`relative w-full aspect-[2/3] max-w-[220px] rounded-2xl md:rounded-[2rem] cursor-pointer transition-all duration-700 [transform-style:preserve-3d] group
+                   ${canPickToday && !chosenCard ? "hover:-translate-y-4 hover:shadow-[0_20px_50px_rgba(0,0,0,0.6)]" : ""}
                    ${chosenCard === card.type ? '[transform:rotateY(180deg)] z-50 scale-110' : ''}
                    ${chosenCard && chosenCard !== card.type ? 'opacity-0 scale-75 pointer-events-none' : 'opacity-100'}`}
-                 style={{ transitionDelay: `${index * 50}ms` }}
+                 style={{ transitionDelay: `${index * 40}ms` }}
             >
-                {/* Card Back */}
-                <div className="absolute w-full h-full bg-[#1a1a2e] rounded-xl md:rounded-2xl [backface-visibility:hidden] flex items-center justify-center flex-col shadow-xl border border-white/10 overflow-hidden">
-                     {/* Mystic Pattern Background */}
-                     <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-20"></div>
-                     <div className="absolute inset-0 bg-gradient-to-br from-purple-900/40 to-blue-900/40"></div>
-                     <div className="absolute inset-2 border border-white/10 rounded-lg"></div>
+                {/* Card Back (Sirli tomon) */}
+                <div className="absolute w-full h-full bg-[#0d0d1a] rounded-2xl md:rounded-[2rem] [backface-visibility:hidden] flex items-center justify-center flex-col shadow-2xl border border-white/5 overflow-hidden">
+                     <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-30"></div>
+                     <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/40 via-purple-900/20 to-black/40"></div>
                      
-                     <div className="relative z-10 text-4xl sm:text-5xl md:text-7xl text-purple-200 opacity-80 group-hover:scale-110 transition-transform duration-500 filter drop-shadow-[0_0_10px_rgba(168,85,247,0.5)]">✨</div>
+                     {/* Frame */}
+                     <div className="absolute inset-3 border border-white/10 rounded-xl md:rounded-[1.5rem]"></div>
+                     
+                     <div className="relative z-10 text-5xl md:text-7xl group-hover:scale-125 transition-transform duration-700 filter drop-shadow-[0_0_15px_rgba(167,139,250,0.6)] group-hover:rotate-12">
+                        ✨
+                     </div>
                 </div>
 
-                {/* Card Front */}
-                <div className={`absolute w-full h-full bg-gray-900 rounded-xl md:rounded-2xl [backface-visibility:hidden] [transform:rotateY(180deg)] p-2 md:p-4 flex flex-col items-center justify-between text-center border-2 border-white/10 shadow-2xl overflow-hidden`}>
+                {/* Card Front (Ochilgan tomon) */}
+                <div className={`absolute w-full h-full bg-gray-900 rounded-2xl md:rounded-[2rem] [backface-visibility:hidden] [transform:rotateY(180deg)] p-6 flex flex-col items-center justify-between text-center border-2 border-white/20 shadow-[0_0_40px_rgba(0,0,0,0.8)] overflow-hidden`}>
                     <div className={`absolute inset-0 bg-gradient-to-b ${card.color} opacity-20`}></div>
                     
-                    <div className="relative z-10 pt-2 md:pt-4">
-                        <div className={`w-10 h-10 md:w-14 md:h-14 mx-auto mb-2 text-white p-2 md:p-3 rounded-full bg-gradient-to-br ${card.color} shadow-lg`}>
+                    <div className="relative z-10 pt-4">
+                        <div className={`w-16 h-16 mx-auto mb-4 text-white p-4 rounded-full bg-gradient-to-br ${card.color} shadow-lg`}>
                             {card.icon}
                         </div>
-                        <h3 className="text-sm md:text-lg font-bold text-white">{card.label}</h3>
+                        <h3 className="text-xl font-black text-white drop-shadow-md">{card.label}</h3>
                     </div>
                     
-                    <div className="relative z-10 flex-grow flex items-center justify-center">
+                    <div className="relative z-10 flex-grow flex items-center justify-center mt-4">
                         {isLoading && chosenCard === card.type ? (
-                            <div className="flex items-center gap-1">
-                                <span className="w-2 h-2 bg-white rounded-full animate-bounce"></span>
-                                <span className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '100ms' }}></span>
-                                <span className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '200ms' }}></span>
+                            <div className="flex items-center gap-2">
+                                <span className="w-3 h-3 bg-cyan-400 rounded-full animate-bounce"></span>
+                                <span className="w-3 h-3 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                                <span className="w-3 h-3 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
                             </div>
                         ) : (
-                            <div className="w-full h-1 bg-white/20 rounded-full my-2"></div>
+                            prediction && chosenCard === card.type && (
+                                <p className="text-xs md:text-sm italic text-gray-200 animate-fade-in line-clamp-6 leading-relaxed">
+                                    "{prediction}"
+                                </p>
+                            )
                         )}
-                        {prediction && chosenCard === card.type && <p className="text-xs md:text-sm italic text-gray-200 animate-fade-in line-clamp-4">"{prediction}"</p>}
                     </div>
                 </div>
             </div>
           ))}
         </div>
+      )}
+      
+      {error && (
+          <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-red-900/80 backdrop-blur-md border border-red-500 text-white px-6 py-3 rounded-full shadow-2xl animate-bounce z-50">
+              {error}
+          </div>
       )}
     </div>
   );

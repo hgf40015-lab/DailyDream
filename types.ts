@@ -7,7 +7,7 @@ export interface Translations {
   [key: string]: any;
 }
 
-export type View = 'home' | 'dreamJourney' | 'calendar' | 'encyclopedia' | 'cards' | 'premium' | 'chat' | 'settings' | 'dreamMachine' | 'meditation' | 'challenges' | 'dreamProfile' | 'dreamCoach' | 'dreamMap' | 'publicDreams' | 'analysisMethods' | 'visualizeDream' | 'blog' | 'community' | 'dreamGallery';
+export type View = 'home' | 'dreamJourney' | 'calendar' | 'encyclopedia' | 'cards' | 'premium' | 'chat' | 'settings' | 'dreamMachine' | 'dreamProfile' | 'dreamCoach' | 'dreamMap' | 'publicDreams' | 'analysisMethods' | 'visualizeDream' | 'community' | 'dreamGallery';
 
 export interface DreamPrediction {
   generalMeaning: string;

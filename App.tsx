@@ -12,8 +12,6 @@ import DreamProfile from './components/Profile';
 import Settings from './components/Settings';
 import PremiumTherapist from './components/PremiumTherapist';
 import DreamMachine from './components/DreamMachine';
-import Meditation from './components/Meditation';
-import Challenges from './components/Challenges';
 import DreamCoach from './components/DreamCoach';
 import PublicDreams from './components/PublicDreams';
 import VisualizeDream from './components/VisualizeDream';
@@ -21,7 +19,6 @@ import DreamGallery from './components/DreamGallery';
 import NamePrompt from './components/NamePrompt';
 import BirthdayModal from './components/BirthdayModal';
 import ReminderModal from './components/ReminderModal';
-import Blog from './components/Blog';
 import Footer from './components/Footer';
 import { View, Theme } from './types';
 import { LanguageContext } from './contexts/LanguageContext';
@@ -200,10 +197,6 @@ const App: React.FC = () => {
         return <PremiumTherapist />;
       case 'dreamMachine':
         return <DreamMachine />;
-      case 'meditation':
-        return <Meditation />;
-      case 'challenges':
-        return <Challenges />;
       case 'dreamCoach':
         return <DreamCoach />;
       case 'publicDreams':
@@ -212,8 +205,6 @@ const App: React.FC = () => {
         return <VisualizeDream />;
       case 'dreamGallery': 
         return <DreamGallery />;
-      case 'blog':
-        return <Blog />;
       default:
         return <HomePage setCurrentView={setCurrentView} userFullName={userFullName} onSearch={handleGlobalSearch} />;
     }

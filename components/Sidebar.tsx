@@ -4,9 +4,9 @@ import { LanguageContext } from '../contexts/LanguageContext';
 import { View } from '../types';
 import { 
     LanguageIcon, HomeIcon, EncyclopediaIcon, CardsIcon, SettingsIcon, 
-    DreamMachineIcon, MeditationIcon, ChallengesIcon, DreamProfileIcon, 
+    DreamMachineIcon, DreamProfileIcon, 
     DreamCoachIcon, PublicDreamsIcon, VisualizeDreamIcon, PremiumIcon, 
-    JourneyIcon, BlogIcon, MenuIcon, XMarkIcon
+    JourneyIcon, MenuIcon, XMarkIcon
 } from './icons/Icons';
 
 interface SidebarProps {
@@ -26,7 +26,6 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, openLang
         items: [
             { id: 'home', label: translations.home, icon: <HomeIcon /> },
             { id: 'publicDreams', label: translations.publicDreams, icon: <PublicDreamsIcon /> },
-            { id: 'blog', label: translations.blog, icon: <BlogIcon /> },
             { id: 'encyclopedia', label: translations.dreamEncyclopedia, icon: <EncyclopediaIcon /> },
         ]
     },
@@ -54,8 +53,6 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, openLang
     {
         title: translations.catWellbeing,
         items: [
-            { id: 'meditation', label: translations.meditation, icon: <MeditationIcon /> },
-            { id: 'challenges', label: translations.challenges, icon: <ChallengesIcon /> },
             { id: 'premium', label: translations.premiumFeatures, icon: <PremiumIcon /> },
         ]
     },
