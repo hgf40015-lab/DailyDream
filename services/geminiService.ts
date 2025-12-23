@@ -56,10 +56,9 @@ export const interpretDream = async (dream: string, language: Language): Promise
     const apiKey = getApiKey();
     
     if (!apiKey) {
-        console.error("Gemini API Key is missing. Please set API_KEY in your environment/Vercel settings.");
         return {
-            generalMeaning: language === 'uz' ? "API kaliti sozlanmagan. Iltimos, Vercel sozlamalarini tekshiring." : "API Key is missing in configuration.",
-            nextDayAdvice: "Check environment variables.",
+            generalMeaning: language === 'uz' ? "API kaliti sozlanmagan." : "API Key is missing.",
+            nextDayAdvice: "Check settings.",
             luckPercentage: 0,
             sentiment: 'neutral',
             psychologicalInsight: "Connection unavailable.",
@@ -73,18 +72,25 @@ export const interpretDream = async (dream: string, language: Language): Promise
     try {
         const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
-            contents: `Analyze this dream: "${dream}" in ${language}. Provide a mystical and psychological analysis in JSON format.`,
+            contents: `Analyze this dream: "${dream}" in ${language}. 
+            CRITICAL RULES:
+            - Be balanced: not too short, not too long.
+            - "story": A very brief mystical message (max 15 words).
+            - "generalMeaning": 1-2 deep sentences.
+            - "nextDayAdvice": 1 practical sentence.
+            - "psychologicalInsight": 1-2 insightful sentences.
+            Provide JSON.`,
             config: {
                 responseMimeType: "application/json",
                 responseSchema: {
                     type: Type.OBJECT,
                     properties: {
-                        generalMeaning: { type: Type.STRING },
-                        nextDayAdvice: { type: Type.STRING },
+                        generalMeaning: { type: Type.STRING, description: "1-2 sentences about the dream's core message" },
+                        nextDayAdvice: { type: Type.STRING, description: "1 clear advice for tomorrow" },
                         luckPercentage: { type: Type.INTEGER },
                         sentiment: { type: Type.STRING, enum: ['positive', 'neutral', 'negative'] },
-                        psychologicalInsight: { type: Type.STRING },
-                        story: { type: Type.STRING },
+                        psychologicalInsight: { type: Type.STRING, description: "1-2 sentences explaining the inner state" },
+                        story: { type: Type.STRING, description: "A very short, poetic summary (max 15 words)" },
                     },
                     required: ['generalMeaning', 'nextDayAdvice', 'luckPercentage', 'sentiment', 'psychologicalInsight', 'story'],
                 }
@@ -94,14 +100,13 @@ export const interpretDream = async (dream: string, language: Language): Promise
         const data = JSON.parse(response.text || '{}');
         return { ...data, offline: false };
     } catch (e: any) {
-        console.warn("API Error:", e.message);
         return {
-            generalMeaning: language === 'uz' ? "Tahlil jarayonida xatolik yuz berdi. Bu limit tugashi yoki internet ulanishi bilan bog'liq bo'lishi mumkin." : "Interpretation failed due to an API error.",
-            nextDayAdvice: "Try again in a few moments.",
+            generalMeaning: language === 'uz' ? "Tahlil jarayonida xatolik." : "Interpretation error.",
+            nextDayAdvice: "Try again later.",
             luckPercentage: 50,
             sentiment: 'neutral',
-            psychologicalInsight: "Error: " + (e.message || "Unknown error"),
-            story: "The stars are currently obscured by clouds...",
+            psychologicalInsight: "Error detail: " + (e.message || "Unknown"),
+            story: "Stars are hidden.",
             offline: true
         };
     }
@@ -114,7 +119,7 @@ export const getDreamSymbolMeaning = async (symbol: string, language: Language):
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Meaning of symbol: "${symbol}" in ${language}. JSON: symbol, islamic, psychological, lifeAdvice.`,
+        contents: `Brief meaning of symbol: "${symbol}" in ${language}. JSON format. Max 2 sentences per field.`,
         config: {
             responseMimeType: "application/json",
             responseSchema: {
@@ -139,7 +144,7 @@ export const getGeneralDailyPrediction = async (language: Language): Promise<{ p
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `One-sentence mystical daily fortune for a dreamer in ${language}. Max 12 words.`,
+        contents: `One-sentence mystical daily fortune for a dreamer in ${language}. Max 10 words.`,
         config: { 
             responseMimeType: "application/json", 
             responseSchema: { type: Type.OBJECT, properties: { prediction: { type: Type.STRING } }, required: ['prediction'] } 
@@ -155,7 +160,7 @@ export const getCardPrediction = async (cardType: string, language: Language): P
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Brief mystical prediction for a ${cardType} card in ${language}.`,
+        contents: `Max 15 words mystical prediction for ${cardType} in ${language}.`,
         config: { 
             responseMimeType: "application/json", 
             responseSchema: { type: Type.OBJECT, properties: { prediction: { type: Type.STRING } }, required: ['prediction'] } 
@@ -171,7 +176,7 @@ export const getDreamState = async (dreams: StoredDream[], language: Language): 
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Analyze dreamer state from these dreams: ${dreams.map(d => d.dream).join(';')}. Language: ${language}`,
+        contents: `Analyze dreamer state from: ${dreams.map(d => d.dream).join(';')}. Language: ${language}. Max 20 words for reason.`,
         config: { 
             responseMimeType: "application/json", 
             responseSchema: { 
@@ -191,7 +196,7 @@ export const generateDreamFromSymbols = async (symbols: string[], language: Lang
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Create a dream story from symbols: ${symbols.join(',')}. Language: ${language}. Settings: ${JSON.stringify(settings)}`,
+        contents: `Short dream story from: ${symbols.join(',')}. Language: ${language}. Max 60 words.`,
         config: { 
             responseMimeType: "application/json", 
             responseSchema: { 
@@ -211,7 +216,7 @@ export const getDreamTestChoices = async (dreams: StoredDream[], language: Langu
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `4 abstract themes based on: ${dreams.map(d => d.dream).join(';')}. Language: ${language}`,
+        contents: `4 abstract themes in ${language} for: ${dreams.map(d => d.dream).join(';')}.`,
         config: { 
             responseMimeType: "application/json", 
             responseSchema: { 
@@ -229,7 +234,7 @@ export const getPersonalityTest = async (dreams: StoredDream[], language: Langua
     const ai = new GoogleGenAI({ apiKey: apiKey || '' });
     const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Personality test result for choice "${choice}" given these dreams: ${dreams.map(d => d.dream).join(';')}. Language: ${language}`,
+        contents: `Short personality result for "${choice}" based on dreams. Language: ${language}. Max 2 sentences per field.`,
         config: { 
             responseMimeType: "application/json", 
             responseSchema: { 
@@ -247,7 +252,7 @@ export const getDreamMapData = async (dream: string, language: Language): Promis
     const ai = new GoogleGenAI({ apiKey: apiKey || '' });
     const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Dream nodes/links for map: "${dream}". Language: ${language}`,
+        contents: `Map nodes for: "${dream}". Language: ${language}. Max 5 nodes.`,
         config: { 
             responseMimeType: "application/json", 
             responseSchema: { 
@@ -268,7 +273,7 @@ export const getDreamCoachInitialMessage = async (dreams: StoredDream[], languag
     const ai = new GoogleGenAI({ apiKey: apiKey || '' });
     const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Warm greeting as Dream Coach for history: ${dreams.map(d => d.dream).join(';')}. Language: ${language}`,
+        contents: `One-sentence greeting as Dream Coach. Language: ${language}.`,
         config: { 
             responseMimeType: "application/json", 
             responseSchema: { type: Type.OBJECT, properties: { message: {type: Type.STRING} }, required: ['message'] } 
@@ -306,7 +311,7 @@ export const getCountryDreamStats = async (country: string, language: Language):
     const ai = new GoogleGenAI({ apiKey: apiKey || '' });
     const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Dream trends for ${country}. Language: ${language}`,
+        contents: `Dream trends for ${country}. Language: ${language}. Short analysis.`,
         config: { 
             responseMimeType: "application/json", 
             responseSchema: { 
