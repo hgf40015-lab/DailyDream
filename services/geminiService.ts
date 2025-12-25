@@ -1,5 +1,5 @@
 
-import { GoogleGenAI, Type, Modality, HarmCategory, HarmBlockThreshold } from "@google/genai";
+import { GoogleGenAI, Type, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { 
     Language, 
     DreamPrediction, 
@@ -20,34 +20,25 @@ export class SafetyError extends Error {
     }
 }
 
-// Offline fallback for sentiment analysis
+// Offline fallback
 export const offlineDictionaries: any = {
-    en: {
-        positiveWords: ['happy', 'joy', 'love', 'fly', 'beautiful', 'win', 'bright', 'gold'],
-        negativeWords: ['sad', 'fear', 'fall', 'death', 'snake', 'dark', 'loss', 'chase'],
-    },
-    uz: {
-        positiveWords: ['baxtli', 'shodlik', 'sevgi', 'uchish', 'go\'zal', 'yutuq', 'yorug\'', 'oltin'],
-        negativeWords: ['xafa', 'qo\'rquv', 'yiqilish', 'o\'lim', 'ilon', 'qorong\'u', 'yo\'qotish', 'quvdi'],
-    }
+    en: { positiveWords: ['happy', 'joy'], negativeWords: ['sad', 'fear'] },
+    uz: { positiveWords: ['baxtli', 'shodlik'], negativeWords: ['xafa', 'qo\'rquv'] }
 };
 
 export const symbolAudioMap: { [key: string]: string } = {
     water: 'https://cdn.pixabay.com/audio/2022/02/04/audio_32b0a9f60f.mp3',
     suv: 'https://cdn.pixabay.com/audio/2022/02/04/audio_32b0a9f60f.mp3',
-    rain: 'https://cdn.pixabay.com/audio/2022/08/10/audio_248321045b.mp3',
-    yomgʻir: 'https://cdn.pixabay.com/audio/2022/08/10/audio_248321045b.mp3',
-    fly: 'https://cdn.pixabay.com/audio/2022/03/24/audio_903960a5d2.mp3',
-    uchish: 'https://cdn.pixabay.com/audio/2022/03/24/audio_903960a5d2.mp3',
-    fire: 'https://cdn.pixabay.com/audio/2022/02/07/audio_f5592a8b5c.mp3',
-    olov: 'https://cdn.pixabay.com/audio/2022/02/07/audio_f5592a8b5c.mp3',
 };
 
 const getAiInstance = () => {
     const apiKey = process.env.API_KEY;
+    
+    // Qat'iy tekshiruv: agar kalit yo'q bo'lsa yoki "undefined" string bo'lib kelib qolsa
     if (!apiKey || apiKey === 'undefined' || apiKey === '') {
-        throw new Error("API Key topilmadi. Iltimos, Vercel sozlamalarida API_KEY kiritilganiga va loyiha qayta Deploy qilinganiga ishonch hosil qiling.");
+        throw new Error("API_KEY_MISSING: Vercel sozlamalarida API_KEY topilmadi yoki loyiha qayta Deploy qilinmagan.");
     }
+    
     return new GoogleGenAI({ apiKey });
 };
 
@@ -56,9 +47,7 @@ export const interpretDream = async (dream: string, language: Language): Promise
         const ai = getAiInstance();
         const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
-            contents: `Analyze this dream: "${dream}" in ${language}. 
-            CRITICAL: Result must be 1-2 balanced sentences per field.
-            Provide JSON.`,
+            contents: `Analyze this dream: "${dream}" in ${language}. Result in JSON.`,
             config: {
                 responseMimeType: "application/json",
                 responseSchema: {
@@ -78,10 +67,14 @@ export const interpretDream = async (dream: string, language: Language): Promise
         return JSON.parse(response.text || '{}');
     } catch (e: any) {
         console.error("Interpret Error:", e);
+        const errorMsg = e.message?.includes("API_KEY_MISSING") 
+            ? "API kaliti ulanmagan. Iltimos, loyihani Vercel-da Redeploy qiling." 
+            : "Xizmatda vaqtincha uzilish. Qayta urinib ko'ring.";
+        
         return { 
-            generalMeaning: e.message || "Xatolik yuz berdi", 
-            nextDayAdvice: "Aloqani tekshiring", 
-            luckPercentage: 50, 
+            generalMeaning: errorMsg, 
+            nextDayAdvice: "Sozlamalarni tekshiring", 
+            luckPercentage: 0, 
             sentiment: 'neutral', 
             psychologicalInsight: "", 
             story: "", 
@@ -95,7 +88,7 @@ export const translateForImage = async (prompt: string): Promise<string> => {
         const ai = getAiInstance();
         const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
-            contents: `Translate this dream into a short, descriptive English image prompt: "${prompt}". Return ONLY the translation.`,
+            contents: `Translate to English art prompt: "${prompt}". Return ONLY translation.`,
         });
         return response.text?.trim() || prompt;
     } catch {
@@ -124,23 +117,15 @@ export const generateImageFromDream = async (prompt: string): Promise<string> =>
                 if (part.inlineData?.data) return part.inlineData.data;
             }
         }
-        
-        const textResponse = response.text || "";
-        if (textResponse.toLowerCase().includes("safety") || textResponse.toLowerCase().includes("blocked")) {
-            throw new SafetyError("Mazmun xavfsizlik filtri tomonidan bloklandi.");
-        }
-        
-        throw new Error("Tasvir yaratib bo'lmadi. Model javob bermadi.");
+        throw new Error("Rasm yaratilmadi.");
     } catch (e: any) {
-        console.error("Image API Error:", e);
-        if (e.message?.includes("safety") || e.message?.includes("blocked") || e.message?.includes("finish_reason: SAFETY")) {
-            throw new SafetyError("Mazmun xavfsizlik filtri tomonidan bloklandi.");
+        if (e.message?.includes("SAFETY") || e.message?.includes("blocked")) {
+            throw new SafetyError("Xavfsizlik filtri blokladi.");
         }
         throw e;
     }
 };
 
-// Existing functions below...
 export const getDreamSymbolMeaning = async (symbol: string, language: Language): Promise<DreamSymbolMeaning> => {
     const ai = getAiInstance();
     const response = await ai.models.generateContent({
@@ -168,11 +153,11 @@ export const getGeneralDailyPrediction = async (language: Language): Promise<{ p
         const ai = getAiInstance();
         const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
-            contents: `One short mystical prediction in ${language}.`,
+            contents: `Short daily mystical prediction in ${language}.`,
         });
-        return { prediction: response.text || "Bugungi kun sehrli bo'ladi." };
+        return { prediction: response.text || "Bugun sehrli kun." };
     } catch {
-        return { prediction: "Tushlar sizni kutmoqda." };
+        return { prediction: "Tushlar sizni chorlaydi." };
     }
 };
 
@@ -193,7 +178,7 @@ export const getDreamState = async (dreams: StoredDream[], language: Language): 
     const ai = getAiInstance();
     const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Analyze dreamer state from these dreams: ${dreams.map(d => d.dream).join(';')}. Language: ${language}.`,
+        contents: `Analyze dreamer state: ${dreams.map(d => d.dream).join(';')}. Language: ${language}.`,
         config: { 
             responseMimeType: "application/json", 
             responseSchema: { 
@@ -213,7 +198,7 @@ export const generateDreamFromSymbols = async (symbols: string[], language: Lang
     const ai = getAiInstance();
     const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Story from symbols: ${symbols.join(',')}. Language: ${language}. Max 60 words.`,
+        contents: `Story from symbols: ${symbols.join(',')}. Language: ${language}.`,
         config: { 
             responseMimeType: "application/json", 
             responseSchema: { 
@@ -234,7 +219,7 @@ export const getDreamTestChoices = async (dreams: StoredDream[], language: Langu
     const ai = getAiInstance();
     const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `4 abstract themes in ${language} based on these dreams: ${dreams.map(d => d.dream).join(';')}.`,
+        contents: `4 abstract themes in ${language} from: ${dreams.map(d => d.dream).join(';')}.`,
         config: { 
             responseMimeType: "application/json", 
             responseSchema: { 
@@ -251,7 +236,7 @@ export const getPersonalityTest = async (dreams: StoredDream[], language: Langua
     const ai = getAiInstance();
     const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Personality analysis for choice "${choice}" in ${language}.`,
+        contents: `Personality for choice "${choice}" in ${language}.`,
         config: { 
             responseMimeType: "application/json", 
             responseSchema: { 
@@ -268,7 +253,7 @@ export const getDreamMapData = async (dream: string, language: Language): Promis
     const ai = getAiInstance();
     const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Map nodes and links for this dream: "${dream}" in ${language}. Max 5 nodes.`,
+        contents: `Map nodes for dream: "${dream}" in ${language}.`,
         config: { 
             responseMimeType: "application/json", 
             responseSchema: { 
@@ -288,7 +273,7 @@ export const getDreamCoachInitialMessage = async (dreams: StoredDream[], languag
     const ai = getAiInstance();
     const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Short welcome message as a Dream Coach in ${language} for a user who has these dreams: ${dreams.map(d => d.dream).join(';')}.`,
+        contents: `Dream Coach welcome in ${language} for user with dreams: ${dreams.map(d => d.dream).join(';')}.`,
         config: { 
             responseMimeType: "application/json", 
             responseSchema: { type: Type.OBJECT, properties: { message: {type: Type.STRING} }, required: ['message'] } 
@@ -301,7 +286,7 @@ export const getCountryDreamStats = async (country: string, language: Language):
     const ai = getAiInstance();
     const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Dream trends in ${country} in ${language}. JSON format.`,
+        contents: `Dream trends in ${country} in ${language}.`,
         config: { 
             responseMimeType: "application/json", 
             responseSchema: { 
