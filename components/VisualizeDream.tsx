@@ -52,23 +52,23 @@ const VisualizeDream: React.FC = () => {
         setIsSaved(false);
 
         try {
-            // Step 1: Translate to English for better image generation results
+            // 1. Ingliz tiliga o'girish (Rasm sifati uchun muhim)
             const englishPrompt = await translateForImage(prompt);
             
-            // Step 2: Combine with style and quality boosters
-            const finalPrompt = `A high-quality, professional ${selectedStyle} style digital art piece. Subject: ${englishPrompt}. Detailed, 8k, masterpiece.`;
+            // 2. Buyruqni boyitish
+            const finalPrompt = `A stunning, high-quality ${selectedStyle} style digital art piece of: ${englishPrompt}. Masterpiece, 8k, detailed composition.`;
 
-            // Step 3: Generate
+            // 3. Rasm yaratish
             const base64Image = await generateImageFromDream(finalPrompt);
             setImageUrl(`data:image/png;base64,${base64Image}`);
         } catch (e: any) {
-            console.error("Image Gen Error:", e);
+            console.error("Visualize Error:", e);
             if (e instanceof SafetyError) {
-                setError(translations.safetyWarning || "Mazmun xavfsizlik filtri tomonidan bloklandi.");
-            } else if (e.message?.includes("API Key")) {
-                setError("API kaliti topilmadi. Iltimos, sozlamalarni tekshiring.");
+                setError(translations.safetyWarning || "Mazmun bloklandi.");
+            } else if (e.message?.includes("API Key") || e.message?.includes("not found")) {
+                setError("API Kalit bilan bog'liq muammo. Vercel sozlamalarini tekshiring va 'Redeploy' qiling.");
             } else {
-                setError(translations.error);
+                setError(e.message || translations.error);
             }
         } finally {
             setIsLoading(false);
@@ -101,7 +101,7 @@ const VisualizeDream: React.FC = () => {
         <div className="max-w-6xl mx-auto h-full flex flex-col px-4">
             <div className="flex flex-col items-center mb-8">
                 <h2 className="text-3xl font-extrabold text-white text-center mb-6">{translations.visualizeDreamTitle}</h2>
-                <div className="inline-flex bg-gray-900/80 backdrop-blur-md p-1.5 rounded-full border border-white/10">
+                <div className="inline-flex bg-gray-900/80 backdrop-blur-md p-1.5 rounded-full border border-white/10 shadow-lg">
                     <button onClick={() => setActiveTab('create')} className={`relative px-8 py-2 rounded-full text-sm font-bold transition-all z-10 ${activeTab === 'create' ? 'text-white' : 'text-gray-400'}`}>
                         {activeTab === 'create' && <div className="absolute inset-0 bg-gradient-to-r from-cyan-600 to-blue-600 rounded-full -z-10"></div>}
                         {translations.tabCreate}
@@ -123,14 +123,14 @@ const VisualizeDream: React.FC = () => {
                                 <label className="block text-cyan-300 font-bold mb-3 text-sm uppercase tracking-wider">{translations.styleTitle}</label>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
                                     {styles.map((style) => (
-                                        <button key={style.id} onClick={() => setSelectedStyle(style.id)} className={`relative overflow-hidden rounded-xl p-3 text-xs font-bold transition-all ${selectedStyle === style.id ? 'ring-2 ring-white scale-105' : 'opacity-60 hover:opacity-100'}`}>
+                                        <button key={style.id} onClick={() => setSelectedStyle(style.id)} className={`relative overflow-hidden rounded-xl p-3 text-xs font-bold transition-all ${selectedStyle === style.id ? 'ring-2 ring-white scale-105 shadow-xl' : 'opacity-60 hover:opacity-100'}`}>
                                             <div className={`absolute inset-0 bg-gradient-to-br ${style.color} opacity-80`}></div>
                                             <span className="relative z-10 text-white">{style.label}</span>
                                         </button>
                                     ))}
                                 </div>
                                 <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder={translations.visualizeDreamPlaceholder} className="w-full h-32 p-4 bg-black/30 border border-white/10 rounded-xl focus:ring-2 focus:ring-cyan-400 outline-none transition-all resize-none text-white placeholder-gray-500 mb-6" disabled={isLoading} />
-                                <button onClick={handleGenerate} disabled={isLoading || !prompt.trim()} className="w-full py-4 text-xl font-bold text-white bg-gradient-to-r from-purple-600 to-cyan-500 rounded-xl shadow-lg hover:shadow-cyan-500/50 transition-all disabled:opacity-50">
+                                <button onClick={handleGenerate} disabled={isLoading || !prompt.trim()} className="w-full py-4 text-xl font-bold text-white bg-gradient-to-r from-purple-600 to-cyan-500 rounded-xl shadow-lg hover:shadow-cyan-500/50 transition-all disabled:opacity-50 active:scale-95">
                                     {isLoading ? translations.generatingImage : translations.generate}
                                 </button>
                             </div>
@@ -138,29 +138,33 @@ const VisualizeDream: React.FC = () => {
                         {imageUrl && (
                             <div className="flex flex-col gap-4">
                                 <div className="flex gap-4">
-                                    <button onClick={handleDownload} className="flex-1 py-3 text-lg font-bold text-gray-900 bg-gradient-to-r from-green-400 to-emerald-500 rounded-xl">{translations.download}</button>
-                                    <button onClick={handleSaveToGallery} disabled={isSaved} className={`flex-1 py-3 text-lg font-bold text-white rounded-xl ${isSaved ? 'bg-gray-600' : 'bg-gradient-to-r from-blue-500 to-cyan-500'}`}>
+                                    <button onClick={handleDownload} className="flex-1 py-3 text-lg font-bold text-gray-900 bg-gradient-to-r from-green-400 to-emerald-500 rounded-xl hover:shadow-emerald-500/30 transition-all">
+                                        {translations.download}
+                                    </button>
+                                    <button onClick={handleSaveToGallery} disabled={isSaved} className={`flex-1 py-3 text-lg font-bold text-white rounded-xl transition-all ${isSaved ? 'bg-gray-600' : 'bg-gradient-to-r from-blue-500 to-cyan-500'}`}>
                                         {isSaved ? "Saqlandi ✓" : translations.saveToGallery}
                                     </button>
                                 </div>
-                                <button onClick={() => { setImageUrl(null); setPrompt(''); }} className="w-full py-3 text-lg font-bold text-white bg-gray-700/50 rounded-xl">{translations.generateNew}</button>
+                                <button onClick={() => { setImageUrl(null); setPrompt(''); }} className="w-full py-3 text-lg font-bold text-white bg-gray-700/50 rounded-xl border border-white/5 hover:bg-gray-700 transition-colors">
+                                    {translations.generateNew}
+                                </button>
                             </div>
                         )}
                     </div>
 
-                    <div className="relative w-full min-h-[400px] bg-gray-900/60 rounded-3xl border border-white/10 flex items-center justify-center overflow-hidden shadow-2xl">
+                    <div className="relative w-full min-h-[400px] bg-gray-900/60 rounded-3xl border border-white/10 flex items-center justify-center overflow-hidden shadow-2xl transition-all duration-500">
                         {isLoading && <ImageLoadingIndicator />}
                         {error && !isLoading && (
-                            <div className="text-center p-6 bg-red-500/10 border border-red-500/30 rounded-xl max-w-sm m-4">
-                                <p className="text-red-300 font-bold">{error}</p>
-                                <p className="text-xs text-gray-400 mt-2">Maslahat: Agar muammo API bilan bo'lsa, hosting sozlamalarida API_KEY to'g'riligini tekshiring.</p>
+                            <div className="text-center p-8 bg-red-500/10 border border-red-500/30 rounded-2xl max-w-sm m-4 animate-shake">
+                                <p className="text-red-300 font-bold mb-4">{error}</p>
+                                <button onClick={handleGenerate} className="text-xs bg-white/10 px-4 py-2 rounded-full hover:bg-white/20 transition-colors text-white font-bold">Qayta urinish</button>
                             </div>
                         )}
                         {imageUrl && !isLoading && <img src={imageUrl} alt="Generated dream" className="w-full h-full object-cover animate-fade-in" />}
                         {!isLoading && !imageUrl && !error && (
-                            <div className="text-center text-gray-500 p-6">
-                                <div className="w-16 h-16 mx-auto mb-4 opacity-30"><VisualizeDreamIcon /></div>
-                                <p>Tushingizni chap tomonda yozing va sehrni kuting...</p>
+                            <div className="text-center text-gray-500 p-8">
+                                <div className="w-20 h-20 mx-auto mb-6 opacity-20 animate-pulse"><VisualizeDreamIcon /></div>
+                                <p className="text-lg font-medium">Tushingizni tasvirlang va sehrni kutib turing...</p>
                             </div>
                         )}
                     </div>

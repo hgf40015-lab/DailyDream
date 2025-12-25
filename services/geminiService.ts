@@ -46,7 +46,7 @@ export const symbolAudioMap: { [key: string]: string } = {
 const getAiInstance = () => {
     const apiKey = process.env.API_KEY;
     if (!apiKey || apiKey === 'undefined' || apiKey === '') {
-        throw new Error("API Key is missing. Please redeploy the app after adding API_KEY to environment variables.");
+        throw new Error("API Key topilmadi. Iltimos, Vercel sozlamalarida API_KEY kiritilganiga va loyiha qayta Deploy qilinganiga ishonch hosil qiling.");
     }
     return new GoogleGenAI({ apiKey });
 };
@@ -76,11 +76,11 @@ export const interpretDream = async (dream: string, language: Language): Promise
             },
         });
         return JSON.parse(response.text || '{}');
-    } catch (e) {
+    } catch (e: any) {
         console.error("Interpret Error:", e);
         return { 
-            generalMeaning: "Error occurred", 
-            nextDayAdvice: "Check connection", 
+            generalMeaning: e.message || "Xatolik yuz berdi", 
+            nextDayAdvice: "Aloqani tekshiring", 
             luckPercentage: 50, 
             sentiment: 'neutral', 
             psychologicalInsight: "", 
@@ -95,9 +95,9 @@ export const translateForImage = async (prompt: string): Promise<string> => {
         const ai = getAiInstance();
         const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
-            contents: `Translate this dream to a professional English art prompt: "${prompt}". Return ONLY the translation.`,
+            contents: `Translate this dream into a short, descriptive English image prompt: "${prompt}". Return ONLY the translation.`,
         });
-        return response.text || prompt;
+        return response.text?.trim() || prompt;
     } catch {
         return prompt;
     }
@@ -124,15 +124,23 @@ export const generateImageFromDream = async (prompt: string): Promise<string> =>
                 if (part.inlineData?.data) return part.inlineData.data;
             }
         }
-        throw new Error("No image generated");
+        
+        const textResponse = response.text || "";
+        if (textResponse.toLowerCase().includes("safety") || textResponse.toLowerCase().includes("blocked")) {
+            throw new SafetyError("Mazmun xavfsizlik filtri tomonidan bloklandi.");
+        }
+        
+        throw new Error("Tasvir yaratib bo'lmadi. Model javob bermadi.");
     } catch (e: any) {
-        if (e.message?.includes("safety") || e.message?.includes("blocked")) {
-            throw new SafetyError("Safety filter blocked this content.");
+        console.error("Image API Error:", e);
+        if (e.message?.includes("safety") || e.message?.includes("blocked") || e.message?.includes("finish_reason: SAFETY")) {
+            throw new SafetyError("Mazmun xavfsizlik filtri tomonidan bloklandi.");
         }
         throw e;
     }
 };
 
+// Existing functions below...
 export const getDreamSymbolMeaning = async (symbol: string, language: Language): Promise<DreamSymbolMeaning> => {
     const ai = getAiInstance();
     const response = await ai.models.generateContent({
@@ -162,9 +170,9 @@ export const getGeneralDailyPrediction = async (language: Language): Promise<{ p
             model: 'gemini-3-flash-preview',
             contents: `One short mystical prediction in ${language}.`,
         });
-        return { prediction: response.text || "Today is magical." };
+        return { prediction: response.text || "Bugungi kun sehrli bo'ladi." };
     } catch {
-        return { prediction: "Dreams await you." };
+        return { prediction: "Tushlar sizni kutmoqda." };
     }
 };
 
@@ -172,7 +180,7 @@ export const getCardPrediction = async (cardType: string, language: Language): P
     const ai = getAiInstance();
     const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Prediction for ${cardType} in ${language}. Max 15 words.`,
+        contents: `Prediction for ${cardType} card in ${language}. Max 15 words.`,
         config: { 
             responseMimeType: "application/json", 
             responseSchema: { type: Type.OBJECT, properties: { prediction: { type: Type.STRING } }, required: ['prediction'] } 
