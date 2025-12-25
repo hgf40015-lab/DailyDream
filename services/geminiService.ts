@@ -34,9 +34,10 @@ export const symbolAudioMap: { [key: string]: string } = {
 const getAiInstance = () => {
     const apiKey = process.env.API_KEY;
     
-    // Qat'iy tekshiruv: agar kalit yo'q bo'lsa yoki "undefined" string bo'lib kelib qolsa
+    // Debugging: Konsolga kalit borligini chiqaramiz (kalitning o'zini emas, faqat holatini)
     if (!apiKey || apiKey === 'undefined' || apiKey === '') {
-        throw new Error("API_KEY_MISSING: Vercel sozlamalarida API_KEY topilmadi yoki loyiha qayta Deploy qilinmagan.");
+        console.error("CRITICAL: API_KEY is missing in process.env");
+        throw new Error("API_KEY_MISSING");
     }
     
     return new GoogleGenAI({ apiKey });
@@ -66,10 +67,17 @@ export const interpretDream = async (dream: string, language: Language): Promise
         });
         return JSON.parse(response.text || '{}');
     } catch (e: any) {
-        console.error("Interpret Error:", e);
-        const errorMsg = e.message?.includes("API_KEY_MISSING") 
-            ? "API kaliti ulanmagan. Iltimos, loyihani Vercel-da Redeploy qiling." 
-            : "Xizmatda vaqtincha uzilish. Qayta urinib ko'ring.";
+        console.error("Interpret Error Detailed:", e);
+        
+        let errorMsg = "Xizmatda uzilish. Qayta urinib ko'ring.";
+        
+        if (e.message?.includes("API_KEY_MISSING")) {
+            errorMsg = "DIQQAT: API kalit ulanmagan. Vercel-da eng oxirgi deploymentni 'Redeploy' qiling.";
+        } else if (e.message?.includes("403")) {
+            errorMsg = "API kalitda ruxsat yo'q. Google Cloud-da billing yoki API cheklovlarini tekshiring.";
+        } else if (e.message?.includes("401")) {
+            errorMsg = "API kalit yaroqsiz (Invalid API Key).";
+        }
         
         return { 
             generalMeaning: errorMsg, 
@@ -97,8 +105,8 @@ export const translateForImage = async (prompt: string): Promise<string> => {
 };
 
 export const generateImageFromDream = async (prompt: string): Promise<string> => {
-    const ai = getAiInstance();
     try {
+        const ai = getAiInstance();
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash-image',
             contents: { parts: [{ text: prompt }] },
@@ -117,10 +125,14 @@ export const generateImageFromDream = async (prompt: string): Promise<string> =>
                 if (part.inlineData?.data) return part.inlineData.data;
             }
         }
-        throw new Error("Rasm yaratilmadi.");
+        throw new Error("Rasm modeli javob bermadi.");
     } catch (e: any) {
+        console.error("Image Generation Error:", e);
         if (e.message?.includes("SAFETY") || e.message?.includes("blocked")) {
             throw new SafetyError("Xavfsizlik filtri blokladi.");
+        }
+        if (e.message?.includes("403") || e.message?.includes("429")) {
+            throw new Error("Rasm yaratish limiti tugagan yoki ruxsat yo'q.");
         }
         throw e;
     }
