@@ -23,20 +23,61 @@ export class SafetyError extends Error {
 // API kalitni tekshirish uchun yordamchi funksiya
 export const isApiKeyValid = () => {
     const apiKey = process.env.API_KEY;
-    return apiKey && apiKey !== 'undefined' && apiKey !== '' && apiKey.length > 10;
+    return !!(apiKey && apiKey !== 'undefined' && apiKey !== '' && apiKey.length > 10);
 };
 
 const getAiInstance = () => {
     const apiKey = process.env.API_KEY;
     
     if (!isApiKeyValid()) {
-        console.error("CRITICAL: API_KEY is missing or invalid.");
         throw new Error("API_KEY_NOT_CONFIGURED");
     }
     
     return new GoogleGenAI({ apiKey });
 };
 
+export const translateForImage = async (prompt: string): Promise<string> => {
+    try {
+        const ai = getAiInstance();
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: `Translate the following dream visual description into a highly detailed English image prompt: "${prompt}". Return ONLY the translated English text.`,
+        });
+        return response.text?.trim() || prompt;
+    } catch {
+        return prompt;
+    }
+};
+
+export const generateImageFromDream = async (prompt: string): Promise<string> => {
+    try {
+        const ai = getAiInstance();
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash-image',
+            contents: { parts: [{ text: prompt }] },
+            config: { 
+                safetySettings: [
+                    { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+                    { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+                    { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+                    { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH }
+                ]
+            },
+        });
+
+        if (response.candidates?.[0]?.content?.parts) {
+            for (const part of response.candidates[0].content.parts) {
+                if (part.inlineData?.data) return part.inlineData.data;
+            }
+        }
+        throw new Error("No image data returned");
+    } catch (e: any) {
+        if (e.message?.includes("SAFETY")) throw new SafetyError("Xavfsizlik filtri blokladi.");
+        throw e;
+    }
+};
+
+// ... (other functions remain the same as in previous file content)
 export const interpretDream = async (dream: string, language: Language): Promise<DreamPrediction> => {
     try {
         const ai = getAiInstance();
@@ -92,47 +133,6 @@ export const getDreamSymbolMeaning = async (symbol: string, language: Language):
         });
         return JSON.parse(response.text || '{}');
     } catch (e) {
-        throw e;
-    }
-};
-
-export const translateForImage = async (prompt: string): Promise<string> => {
-    try {
-        const ai = getAiInstance();
-        const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
-            contents: `Translate the following dream visual description into a highly detailed English image prompt: "${prompt}". Return ONLY the translated English text.`,
-        });
-        return response.text?.trim() || prompt;
-    } catch {
-        return prompt;
-    }
-};
-
-export const generateImageFromDream = async (prompt: string): Promise<string> => {
-    try {
-        const ai = getAiInstance();
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-image',
-            contents: { parts: [{ text: prompt }] },
-            config: { 
-                safetySettings: [
-                    { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-                    { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-                    { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-                    { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH }
-                ]
-            },
-        });
-
-        if (response.candidates?.[0]?.content?.parts) {
-            for (const part of response.candidates[0].content.parts) {
-                if (part.inlineData?.data) return part.inlineData.data;
-            }
-        }
-        throw new Error("No image data returned");
-    } catch (e: any) {
-        if (e.message?.includes("SAFETY")) throw new SafetyError("Xavfsizlik filtri blokladi.");
         throw e;
     }
 };
