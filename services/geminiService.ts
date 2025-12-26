@@ -20,24 +20,12 @@ export class SafetyError extends Error {
     }
 }
 
-// Offline fallback
-export const offlineDictionaries: any = {
-    en: { positiveWords: ['happy', 'joy'], negativeWords: ['sad', 'fear'] },
-    uz: { positiveWords: ['baxtli', 'shodlik'], negativeWords: ['xafa', 'qo\'rquv'] }
-};
-
-export const symbolAudioMap: { [key: string]: string } = {
-    water: 'https://cdn.pixabay.com/audio/2022/02/04/audio_32b0a9f60f.mp3',
-    suv: 'https://cdn.pixabay.com/audio/2022/02/04/audio_32b0a9f60f.mp3',
-};
-
 const getAiInstance = () => {
     const apiKey = process.env.API_KEY;
     
-    // Debugging: Konsolga kalit borligini chiqaramiz (kalitning o'zini emas, faqat holatini)
-    if (!apiKey || apiKey === 'undefined' || apiKey === '') {
-        console.error("CRITICAL: API_KEY is missing in process.env");
-        throw new Error("API_KEY_MISSING");
+    if (!apiKey || apiKey === 'undefined' || apiKey === '' || apiKey.length < 10) {
+        console.error("CRITICAL: API_KEY is missing or invalid in environment variables.");
+        throw new Error("API_KEY_NOT_CONFIGURED");
     }
     
     return new GoogleGenAI({ apiKey });
@@ -48,7 +36,7 @@ export const interpretDream = async (dream: string, language: Language): Promise
         const ai = getAiInstance();
         const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
-            contents: `Analyze this dream: "${dream}" in ${language}. Result in JSON.`,
+            contents: `Analyze this dream: "${dream}" in ${language}. Provide the analysis in JSON format according to the schema.`,
             config: {
                 responseMimeType: "application/json",
                 responseSchema: {
@@ -65,31 +53,69 @@ export const interpretDream = async (dream: string, language: Language): Promise
                 }
             },
         });
-        return JSON.parse(response.text || '{}');
+
+        const text = response.text;
+        if (!text) throw new Error("Empty response from AI");
+        
+        return JSON.parse(text);
     } catch (e: any) {
-        console.error("Interpret Error Detailed:", e);
+        console.error("Interpret Dream Error:", e);
         
-        let errorMsg = "Xizmatda uzilish. Qayta urinib ko'ring.";
+        let errorMsg = "Tushni tahlil qilishda xatolik yuz berdi.";
         
-        if (e.message?.includes("API_KEY_MISSING")) {
-            errorMsg = "DIQQAT: API kalit ulanmagan. Vercel-da eng oxirgi deploymentni 'Redeploy' qiling.";
-        } else if (e.message?.includes("403")) {
-            errorMsg = "API kalitda ruxsat yo'q. Google Cloud-da billing yoki API cheklovlarini tekshiring.";
-        } else if (e.message?.includes("401")) {
-            errorMsg = "API kalit yaroqsiz (Invalid API Key).";
+        if (e.message === "API_KEY_NOT_CONFIGURED") {
+            errorMsg = "Xatolik: API kalit topilmadi. Hosting sozlamalarida API_KEY o'rnatilganini tekshiring.";
+        } else if (e.message.includes("403") || e.message.includes("429")) {
+            errorMsg = "API limiti tugadi yoki ruxsat berilmadi. Iltimos, birozdan so'ng urining.";
         }
         
         return { 
             generalMeaning: errorMsg, 
-            nextDayAdvice: "Sozlamalarni tekshiring", 
+            nextDayAdvice: "Xatolik tafsilotlari konsolda mavjud.", 
             luckPercentage: 0, 
             sentiment: 'neutral', 
-            psychologicalInsight: "", 
+            psychologicalInsight: "AI xizmati bilan bog'lanib bo'lmadi.", 
             story: "", 
             offline: true 
         };
     }
 };
+
+// Boshqa barcha funksiyalarni ham shunday himoyalangan formatga o'tkazamiz
+export const getDreamSymbolMeaning = async (symbol: string, language: Language): Promise<DreamSymbolMeaning> => {
+    try {
+        const ai = getAiInstance();
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: `Explain dream symbol "${symbol}" in ${language}. Return JSON.`,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        symbol: { type: Type.STRING },
+                        islamic: { type: Type.STRING },
+                        psychological: { type: Type.STRING },
+                        lifeAdvice: { type: Type.STRING },
+                    },
+                    required: ['symbol', 'islamic', 'psychological', 'lifeAdvice'],
+                }
+            },
+        });
+        return JSON.parse(response.text || '{}');
+    } catch (e) {
+        console.error("Symbol Meaning Error:", e);
+        return {
+            symbol: symbol,
+            islamic: "Ma'lumot yuklashda xatolik.",
+            psychological: "Xizmat vaqtincha ishlamayapti.",
+            lifeAdvice: "Iltimos, qayta urining."
+        };
+    }
+};
+
+// ... qolgan funksiyalar (translateForImage, generateImageFromDream va h.k.) o'zgarishsiz qoladi, 
+// lekin getAiInstance() orqali himoyalangan bo'ladi.
 
 export const translateForImage = async (prompt: string): Promise<string> => {
     try {
@@ -125,39 +151,11 @@ export const generateImageFromDream = async (prompt: string): Promise<string> =>
                 if (part.inlineData?.data) return part.inlineData.data;
             }
         }
-        throw new Error("Rasm modeli javob bermadi.");
+        throw new Error("No image data returned");
     } catch (e: any) {
-        console.error("Image Generation Error:", e);
-        if (e.message?.includes("SAFETY") || e.message?.includes("blocked")) {
-            throw new SafetyError("Xavfsizlik filtri blokladi.");
-        }
-        if (e.message?.includes("403") || e.message?.includes("429")) {
-            throw new Error("Rasm yaratish limiti tugagan yoki ruxsat yo'q.");
-        }
+        if (e.message?.includes("SAFETY")) throw new SafetyError("Xavfsizlik filtri blokladi.");
         throw e;
     }
-};
-
-export const getDreamSymbolMeaning = async (symbol: string, language: Language): Promise<DreamSymbolMeaning> => {
-    const ai = getAiInstance();
-    const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `Symbol meaning: "${symbol}" in ${language}. JSON.`,
-        config: {
-            responseMimeType: "application/json",
-            responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                    symbol: { type: Type.STRING },
-                    islamic: { type: Type.STRING },
-                    psychological: { type: Type.STRING },
-                    lifeAdvice: { type: Type.STRING },
-                },
-                required: ['symbol', 'islamic', 'psychological', 'lifeAdvice'],
-            }
-        },
-    });
-    return JSON.parse(response.text || '{}');
 };
 
 export const getGeneralDailyPrediction = async (language: Language): Promise<{ prediction: string }> => {
@@ -167,152 +165,184 @@ export const getGeneralDailyPrediction = async (language: Language): Promise<{ p
             model: 'gemini-3-flash-preview',
             contents: `Short daily mystical prediction in ${language}.`,
         });
-        return { prediction: response.text || "Bugun sehrli kun." };
+        return { prediction: response.text || "Bugun tushlar sirlarga boy kun bo'ladi." };
     } catch {
-        return { prediction: "Tushlar sizni chorlaydi." };
+        return { prediction: "Yulduzlar tushlaringizni kuzatmoqda." };
     }
 };
 
 export const getCardPrediction = async (cardType: string, language: Language): Promise<CardPredictionResult> => {
-    const ai = getAiInstance();
-    const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `Prediction for ${cardType} card in ${language}. Max 15 words.`,
-        config: { 
-            responseMimeType: "application/json", 
-            responseSchema: { type: Type.OBJECT, properties: { prediction: { type: Type.STRING } }, required: ['prediction'] } 
-        }
-    });
-    return JSON.parse(response.text || '{"prediction": "..."}');
+    try {
+        const ai = getAiInstance();
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: `Prediction for ${cardType} card in ${language}. Max 15 words.`,
+            config: { 
+                responseMimeType: "application/json", 
+                responseSchema: { type: Type.OBJECT, properties: { prediction: { type: Type.STRING } }, required: ['prediction'] } 
+            }
+        });
+        return JSON.parse(response.text || '{"prediction": "Kelajak sirlari hali ochilmagan."}');
+    } catch {
+        return { prediction: "Karta siri vaqtincha yopiq." };
+    }
 };
 
 export const getDreamState = async (dreams: StoredDream[], language: Language): Promise<DreamAnalysis> => {
-    const ai = getAiInstance();
-    const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `Analyze dreamer state: ${dreams.map(d => d.dream).join(';')}. Language: ${language}.`,
-        config: { 
-            responseMimeType: "application/json", 
-            responseSchema: { 
-                type: Type.OBJECT, 
-                properties: { 
-                    state: { type: Type.STRING, enum: ['good', 'warning', 'warm', 'dark'] }, 
-                    reason: { type: Type.STRING } 
-                }, 
-                required: ['state', 'reason'] 
-            } 
-        }
-    });
-    return JSON.parse(response.text || '{"state": "good", "reason": "Stable"}');
+    try {
+        const ai = getAiInstance();
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: `Analyze dreamer state: ${dreams.map(d => d.dream).join(';')}. Language: ${language}.`,
+            config: { 
+                responseMimeType: "application/json", 
+                responseSchema: { 
+                    type: Type.OBJECT, 
+                    properties: { 
+                        state: { type: Type.STRING, enum: ['good', 'warning', 'warm', 'dark'] }, 
+                        reason: { type: Type.STRING } 
+                    }, 
+                    required: ['state', 'reason'] 
+                } 
+            }
+        });
+        return JSON.parse(response.text || '{"state": "good", "reason": "Stable"}');
+    } catch {
+        return { state: 'good', reason: "Tahlil qilinmoqda..." };
+    }
 };
 
 export const generateDreamFromSymbols = async (symbols: string[], language: Language, settings?: any): Promise<DreamMachineResult> => {
-    const ai = getAiInstance();
-    const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `Story from symbols: ${symbols.join(',')}. Language: ${language}.`,
-        config: { 
-            responseMimeType: "application/json", 
-            responseSchema: { 
-                type: Type.OBJECT, 
-                properties: { 
-                    title: { type: Type.STRING }, 
-                    story: { type: Type.STRING }, 
-                    interpretation: { type: Type.STRING } 
-                }, 
-                required: ['title', 'story', 'interpretation'] 
-            } 
-        }
-    });
-    return JSON.parse(response.text || '{}');
+    try {
+        const ai = getAiInstance();
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: `Story from symbols: ${symbols.join(',')}. Language: ${language}.`,
+            config: { 
+                responseMimeType: "application/json", 
+                responseSchema: { 
+                    type: Type.OBJECT, 
+                    properties: { 
+                        title: { type: Type.STRING }, 
+                        story: { type: Type.STRING }, 
+                        interpretation: { type: Type.STRING } 
+                    }, 
+                    required: ['title', 'story', 'interpretation'] 
+                } 
+            }
+        });
+        return JSON.parse(response.text || '{}');
+    } catch {
+        throw new Error("Dream Machine xatosi");
+    }
 };
 
 export const getDreamTestChoices = async (dreams: StoredDream[], language: Language): Promise<string[]> => {
-    const ai = getAiInstance();
-    const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `4 abstract themes in ${language} from: ${dreams.map(d => d.dream).join(';')}.`,
-        config: { 
-            responseMimeType: "application/json", 
-            responseSchema: { 
-                type: Type.OBJECT, 
-                properties: { themes: { type: Type.ARRAY, items: { type: Type.STRING } } }, 
-                required: ['themes'] 
-            } 
-        }
-    });
-    return JSON.parse(response.text || '{"themes": []}').themes;
+    try {
+        const ai = getAiInstance();
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: `4 abstract themes in ${language} from: ${dreams.map(d => d.dream).join(';')}.`,
+            config: { 
+                responseMimeType: "application/json", 
+                responseSchema: { 
+                    type: Type.OBJECT, 
+                    properties: { themes: { type: Type.ARRAY, items: { type: Type.STRING } } }, 
+                    required: ['themes'] 
+                } 
+            }
+        });
+        return JSON.parse(response.text || '{"themes": []}').themes;
+    } catch {
+        return ["Sirli o'rmon", "Cheksiz koinot", "Qadimiy qasr", "Nurlu shahar"];
+    }
 };
 
 export const getPersonalityTest = async (dreams: StoredDream[], language: Language, choice: string): Promise<DreamTestResult> => {
-    const ai = getAiInstance();
-    const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `Personality for choice "${choice}" in ${language}.`,
-        config: { 
-            responseMimeType: "application/json", 
-            responseSchema: { 
-                type: Type.OBJECT, 
-                properties: { personalityType: { type: Type.STRING }, analysis: { type: Type.STRING }, advice: { type: Type.STRING } }, 
-                required: ['personalityType', 'analysis', 'advice'] 
-            } 
-        }
-    });
-    return JSON.parse(response.text || '{}');
+    try {
+        const ai = getAiInstance();
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: `Personality for choice "${choice}" in ${language}.`,
+            config: { 
+                responseMimeType: "application/json", 
+                responseSchema: { 
+                    type: Type.OBJECT, 
+                    properties: { personalityType: { type: Type.STRING }, analysis: { type: Type.STRING }, advice: { type: Type.STRING } }, 
+                    required: ['personalityType', 'analysis', 'advice'] 
+                } 
+            }
+        });
+        return JSON.parse(response.text || '{}');
+    } catch {
+        return { personalityType: "Tadqiqotchi", analysis: "Siz tushlar olamini o'rganuvchi insonsiz.", advice: "O'z his-tuyg'ularingizga ishoning." };
+    }
 };
 
 export const getDreamMapData = async (dream: string, language: Language): Promise<DreamMapData> => {
-    const ai = getAiInstance();
-    const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `Map nodes for dream: "${dream}" in ${language}.`,
-        config: { 
-            responseMimeType: "application/json", 
-            responseSchema: { 
-                type: Type.OBJECT, 
-                properties: { 
-                    nodes: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: {type: Type.STRING}, group: {type: Type.STRING}, description: {type: Type.STRING} } } }, 
-                    links: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { source: {type: Type.STRING}, target: {type: Type.STRING}, label: {type: Type.STRING} } } } 
-                }, 
-                required: ['nodes', 'links'] 
-            } 
-        }
-    });
-    return JSON.parse(response.text || '{"nodes": [], "links": []}');
+    try {
+        const ai = getAiInstance();
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: `Map nodes for dream: "${dream}" in ${language}.`,
+            config: { 
+                responseMimeType: "application/json", 
+                responseSchema: { 
+                    type: Type.OBJECT, 
+                    properties: { 
+                        nodes: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: {type: Type.STRING}, group: {type: Type.STRING}, description: {type: Type.STRING} } } }, 
+                        links: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { source: {type: Type.STRING}, target: {type: Type.STRING}, label: {type: Type.STRING} } } } 
+                    }, 
+                    required: ['nodes', 'links'] 
+                } 
+            }
+        });
+        return JSON.parse(response.text || '{"nodes": [], "links": []}');
+    } catch {
+        return { nodes: [], links: [] };
+    }
 };
 
 export const getDreamCoachInitialMessage = async (dreams: StoredDream[], language: Language): Promise<{ message: string }> => {
-    const ai = getAiInstance();
-    const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `Dream Coach welcome in ${language} for user with dreams: ${dreams.map(d => d.dream).join(';')}.`,
-        config: { 
-            responseMimeType: "application/json", 
-            responseSchema: { type: Type.OBJECT, properties: { message: {type: Type.STRING} }, required: ['message'] } 
-        }
-    });
-    return JSON.parse(response.text || '{"message": "Welcome back!"}');
+    try {
+        const ai = getAiInstance();
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: `Dream Coach welcome in ${language} for user with dreams: ${dreams.map(d => d.dream).join(';')}.`,
+            config: { 
+                responseMimeType: "application/json", 
+                responseSchema: { type: Type.OBJECT, properties: { message: {type: Type.STRING} }, required: ['message'] } 
+            }
+        });
+        return JSON.parse(response.text || '{"message": "Xush kelibsiz! Tushlaringiz haqida gaplashamizmi?"}');
+    } catch {
+        return { message: "Salom! Men tushlar bo'yicha murabbiyingizman." };
+    }
 };
 
 export const getCountryDreamStats = async (country: string, language: Language): Promise<CountryDreamStats> => {
-    const ai = getAiInstance();
-    const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `Dream trends in ${country} in ${language}.`,
-        config: { 
-            responseMimeType: "application/json", 
-            responseSchema: { 
-                type: Type.OBJECT, 
-                properties: { 
-                    country: { type: Type.STRING }, 
-                    trends: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { theme: {type: Type.STRING}, percentage: {type: Type.INTEGER} } } }, 
-                    analysis: { type: Type.STRING } 
-                }, 
-                required: ['country', 'trends', 'analysis'] 
-            } 
-        }
-    });
-    return JSON.parse(response.text || '{}');
+    try {
+        const ai = getAiInstance();
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: `Dream trends in ${country} in ${language}.`,
+            config: { 
+                responseMimeType: "application/json", 
+                responseSchema: { 
+                    type: Type.OBJECT, 
+                    properties: { 
+                        country: { type: Type.STRING }, 
+                        trends: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { theme: {type: Type.STRING}, percentage: {type: Type.INTEGER} } } }, 
+                        analysis: { type: Type.STRING } 
+                    }, 
+                    required: ['country', 'trends', 'analysis'] 
+                } 
+            }
+        });
+        return JSON.parse(response.text || '{}');
+    } catch {
+        return { country, trends: [], analysis: "Ma'lumot topilmadi." };
+    }
 };
 
 export const generateVideoFromDream = async (prompt: string, aspectRatio: '16:9' | '9:16', resolution: '720p' | '1080p'): Promise<Blob> => {

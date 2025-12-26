@@ -1,6 +1,8 @@
+
 import React, { useState, useContext, useEffect, useRef } from 'react';
 import { LanguageContext } from '../contexts/LanguageContext';
 import { generateVideoFromDream } from '../services/geminiService';
+import { checkLimit, incrementUsage } from '../services/limitService';
 import { VideoIcon } from './icons/Icons';
 
 const loadingMessages = (translations: any) => [
@@ -47,6 +49,7 @@ const DreamVideoGenerator: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [apiKeySelected, setApiKeySelected] = useState(false);
+    const [limitStatus, setLimitStatus] = useState(checkLimit('video'));
     
     useEffect(() => {
         const checkApiKey = async () => {
@@ -56,27 +59,12 @@ const DreamVideoGenerator: React.FC = () => {
             }
         };
         checkApiKey();
-        
-        // Cleanup object URL on unmount
-        return () => {
-            if (videoUrl) {
-                URL.revokeObjectURL(videoUrl);
-            }
-        };
+        return () => { if (videoUrl) URL.revokeObjectURL(videoUrl); };
     }, []);
-
-    useEffect(() => {
-        return () => {
-            if (videoUrl) {
-                URL.revokeObjectURL(videoUrl);
-            }
-        }
-    }, [videoUrl]);
 
     const handleSelectKey = async () => {
         if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
             await window.aistudio.openSelectKey();
-            // Optimistically assume the user selected a key. The API call will fail if they didn't.
             setApiKeySelected(true);
         }
     };
@@ -84,6 +72,11 @@ const DreamVideoGenerator: React.FC = () => {
     const handleGenerate = async (e?: React.FormEvent) => {
         e?.preventDefault();
         if (!prompt.trim()) return;
+
+        if (!checkLimit('video').canUse) {
+            setError(translations.limitReached || "Limit reached");
+            return;
+        }
 
         setIsLoading(true);
         setError(null);
@@ -94,11 +87,13 @@ const DreamVideoGenerator: React.FC = () => {
             const videoBlob = await generateVideoFromDream(prompt, aspectRatio, resolution);
             const url = URL.createObjectURL(videoBlob);
             setVideoUrl(url);
+            incrementUsage('video');
+            setLimitStatus(checkLimit('video'));
         } catch (e: any) {
             console.error(e);
             if (e.message && e.message.includes("Requested entity was not found.")) {
                 setError(translations.apiKeyError);
-                setApiKeySelected(false); // Force re-selection
+                setApiKeySelected(false);
             } else {
                  setError(translations.error);
             }
@@ -139,14 +134,25 @@ const DreamVideoGenerator: React.FC = () => {
     }
 
     return (
-        <div className="max-w-4xl mx-auto text-center">
-            <div className="w-16 h-16 mx-auto text-cyan-300 mb-4">
-                <VideoIcon />
-            </div>
+        <div className="max-w-4xl mx-auto text-center relative">
+            <div className="w-16 h-16 mx-auto text-cyan-300 mb-4 drop-shadow-lg"><VideoIcon /></div>
             <h2 className="text-3xl font-bold text-glow mb-2">{translations.dreamVideoTitle}</h2>
-            <p className="text-gray-300 mb-8">{translations.dreamVideoSubtitle}</p>
+            <p className="text-gray-300 mb-2">{translations.dreamVideoSubtitle}</p>
+            <div className="mb-8">
+                 <span className="text-[10px] font-bold text-orange-400 uppercase tracking-widest bg-orange-900/20 px-3 py-1 rounded-full border border-orange-500/20">
+                    Video limiti: {limitStatus.remaining} / 1
+                </span>
+            </div>
 
-            <div className="w-full aspect-video bg-gray-900/50 rounded-2xl border-2 border-purple-400/20 flex items-center justify-center overflow-hidden transition-all duration-500">
+            <div className="w-full aspect-video bg-gray-900/50 rounded-2xl border-2 border-purple-400/20 flex items-center justify-center overflow-hidden transition-all duration-500 relative">
+                {!limitStatus.canUse && !videoUrl && !isLoading && (
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-20 flex items-center justify-center p-6 text-center">
+                        <div className="bg-gray-800 p-8 rounded-3xl border border-red-500/30 shadow-2xl">
+                            <p className="text-xl font-bold text-white mb-2">{translations.limitReached}</p>
+                            <p className="text-gray-400 text-sm">{translations.limitMessage}</p>
+                        </div>
+                    </div>
+                )}
                 {isLoading && <LoadingIndicator />}
                 {error && !isLoading && <p className="text-center text-red-400 px-4">{error}</p>}
                 {videoUrl && !isLoading && (
@@ -157,60 +163,21 @@ const DreamVideoGenerator: React.FC = () => {
             <div className="mt-6">
                 {videoUrl && !isLoading ? (
                     <div className="flex flex-col sm:flex-row gap-4 justify-center animate-fade-in">
-                        <button
-                            onClick={handleDownload}
-                            className="px-8 py-3 text-xl font-bold text-white bg-gradient-to-r from-green-500 to-emerald-600 rounded-full shadow-lg hover:shadow-emerald-500/50 transform hover:scale-105 transition-all duration-300"
-                        >
-                            {translations.download}
-                        </button>
-                        <button
-                             onClick={handleGenerateNew}
-                            className="px-8 py-3 text-xl font-bold text-white bg-gradient-to-r from-gray-600 to-gray-700 rounded-full shadow-lg hover:shadow-gray-500/50 transform hover:scale-105 transition-all duration-300"
-                        >
-                           {translations.generateNew}
-                        </button>
+                        <button onClick={handleDownload} className="px-8 py-3 text-xl font-bold text-white bg-gradient-to-r from-green-500 to-emerald-600 rounded-full shadow-lg hover:shadow-emerald-500/50 transform hover:scale-105 transition-all duration-300">{translations.download}</button>
+                        <button onClick={handleGenerateNew} className="px-8 py-3 text-xl font-bold text-white bg-gradient-to-r from-gray-600 to-gray-700 rounded-full shadow-lg hover:shadow-gray-500/50 transform hover:scale-105 transition-all duration-300">{translations.generateNew}</button>
                     </div>
                 ) : (
                     <form onSubmit={handleGenerate} className="flex flex-col gap-4">
                         <textarea
-                            value={prompt}
-                            onChange={(e) => setPrompt(e.target.value)}
+                            value={prompt} onChange={(e) => setPrompt(e.target.value)}
                             placeholder={translations.visualizeDreamPlaceholder}
-                            className="w-full h-28 p-4 bg-gray-800/60 border-2 border-purple-400/40 rounded-xl focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 outline-none transition-all duration-300 resize-none text-lg text-white placeholder-gray-400"
-                            disabled={isLoading}
+                            className="w-full h-28 p-4 bg-gray-800/60 border-2 border-purple-400/40 rounded-xl focus:ring-2 focus:ring-cyan-400 outline-none transition-all duration-300 resize-none text-lg text-white placeholder-gray-400"
+                            disabled={isLoading || !limitStatus.canUse}
                         />
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-white">
-                           <div className="bg-gray-800/60 p-3 rounded-lg border border-purple-400/40">
-                               <label className="font-bold mb-2 block">{translations.aspectRatio}</label>
-                               <div className="flex justify-center gap-4">
-                                   <label className="flex items-center gap-2 cursor-pointer">
-                                       <input type="radio" name="aspectRatio" value="16:9" checked={aspectRatio === '16:9'} onChange={() => setAspectRatio('16:9')} className="form-radio bg-gray-700 text-cyan-500" disabled={isLoading} />
-                                       16:9
-                                   </label>
-                                   <label className="flex items-center gap-2 cursor-pointer">
-                                       <input type="radio" name="aspectRatio" value="9:16" checked={aspectRatio === '9:16'} onChange={() => setAspectRatio('9:16')} className="form-radio bg-gray-700 text-cyan-500" disabled={isLoading}/>
-                                       9:16
-                                   </label>
-                               </div>
-                           </div>
-                           <div className="bg-gray-800/60 p-3 rounded-lg border border-purple-400/40">
-                               <label className="font-bold mb-2 block">{translations.resolution}</label>
-                               <div className="flex justify-center gap-4">
-                                   <label className="flex items-center gap-2 cursor-pointer">
-                                       <input type="radio" name="resolution" value="720p" checked={resolution === '720p'} onChange={() => setResolution('720p')} className="form-radio bg-gray-700 text-cyan-500" disabled={isLoading}/>
-                                       720p
-                                   </label>
-                                   <label className="flex items-center gap-2 cursor-pointer">
-                                       <input type="radio" name="resolution" value="1080p" checked={resolution === '1080p'} onChange={() => setResolution('1080p')} className="form-radio bg-gray-700 text-cyan-500" disabled={isLoading}/>
-                                       1080p
-                                   </label>
-                               </div>
-                           </div>
-                        </div>
                         <button
                             type="submit"
-                            disabled={isLoading || !prompt.trim()}
-                            className="px-8 py-3 text-xl font-bold text-white bg-gradient-to-r from-purple-600 to-cyan-500 rounded-full shadow-lg hover:shadow-cyan-500/50 transform hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100 disabled:shadow-none"
+                            disabled={isLoading || !prompt.trim() || !limitStatus.canUse}
+                            className="px-8 py-3 text-xl font-bold text-white bg-gradient-to-r from-purple-600 to-cyan-500 rounded-full shadow-lg hover:shadow-cyan-500/50 transform hover:scale-105 transition-all duration-300 disabled:opacity-50"
                         >
                             {isLoading ? translations.generatingVideo : translations.generate}
                         </button>

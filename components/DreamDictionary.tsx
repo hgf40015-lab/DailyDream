@@ -2,6 +2,7 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { LanguageContext } from '../contexts/LanguageContext';
 import { getDreamSymbolMeaning } from '../services/geminiService';
+import { checkLimit, incrementUsage } from '../services/limitService';
 import { DreamSymbolMeaning } from '../types';
 import { SummaryIcon, FutureIcon, EncyclopediaIcon } from './icons/Icons';
 
@@ -15,6 +16,7 @@ const DreamDictionary: React.FC<DreamDictionaryProps> = ({ initialSearchTerm = '
   const [result, setResult] = useState<DreamSymbolMeaning | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [limitStatus, setLimitStatus] = useState(checkLimit('dictionary'));
 
   useEffect(() => {
       if (initialSearchTerm && initialSearchTerm.trim() !== '' && (!result || result.symbol.toLowerCase() !== initialSearchTerm.toLowerCase())) {
@@ -27,6 +29,12 @@ const DreamDictionary: React.FC<DreamDictionaryProps> = ({ initialSearchTerm = '
     const termToSearch = searchSymbol || symbol;
     if (!termToSearch.trim() || !language) return;
     
+    const currentLimit = checkLimit('dictionary');
+    if (!currentLimit.canUse) {
+        setError("Kunlik qidiruv limiti tugadi (10 ta). Ertaga qaytib keling!");
+        return;
+    }
+
     setIsLoading(true);
     setError(null);
     setResult(null);
@@ -34,6 +42,8 @@ const DreamDictionary: React.FC<DreamDictionaryProps> = ({ initialSearchTerm = '
     try {
       const meaningResult = await getDreamSymbolMeaning(termToSearch, language);
       setResult(meaningResult);
+      incrementUsage('dictionary');
+      setLimitStatus(checkLimit('dictionary'));
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (e: any) {
       console.error(e);
@@ -59,6 +69,11 @@ const DreamDictionary: React.FC<DreamDictionaryProps> = ({ initialSearchTerm = '
       <div className="text-center mb-8">
         <h2 className="text-3xl font-bold text-glow">{translations.encyclopediaTitle}</h2>
         <p className="text-gray-300">{translations.encyclopediaSubtitle}</p>
+        <div className="mt-3">
+             <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-widest bg-cyan-900/20 px-3 py-1 rounded-full border border-cyan-500/20">
+                Qidiruv limiti: {limitStatus.remaining} / 10
+            </span>
+        </div>
       </div>
       
       <div className="flex flex-col sm:flex-row gap-2 justify-center sticky top-2 z-10 p-2 bg-black/20 backdrop-blur-sm rounded-full border border-white/5">
@@ -68,26 +83,21 @@ const DreamDictionary: React.FC<DreamDictionaryProps> = ({ initialSearchTerm = '
           onChange={(e) => setSymbol(e.target.value)}
           onKeyPress={handleKeyPress}
           placeholder={translations.searchSymbolPlaceholder}
-          className="w-full sm:max-w-md p-3 bg-gray-800/60 border-2 border-purple-400/40 rounded-full focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 outline-none transition-all duration-300 text-lg text-white placeholder-gray-400 text-center"
-          disabled={isLoading}
+          className={`w-full sm:max-w-md p-3 bg-gray-800/60 border-2 ${limitStatus.canUse ? 'border-purple-400/40' : 'border-red-500/40'} rounded-full focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 outline-none transition-all duration-300 text-lg text-white placeholder-gray-400 text-center`}
+          disabled={isLoading || !limitStatus.canUse}
         />
         <button
           onClick={() => handleSearch()}
-          disabled={isLoading || !symbol.trim()}
+          disabled={isLoading || !symbol.trim() || !limitStatus.canUse}
           className="px-8 py-3 text-xl font-bold text-white bg-gradient-to-r from-purple-600 to-cyan-500 rounded-full shadow-lg hover:shadow-cyan-500/50 transform hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isLoading ? (
-              <span className="flex items-center gap-2">
-                <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                {translations.interpreting}
-              </span>
-          ) : translations.searchButton}
+          {isLoading ? translations.interpreting : translations.searchButton}
         </button>
       </div>
 
       {error && (
-          <div className="mt-6 p-4 bg-red-900/40 border border-red-500/50 rounded-2xl text-center">
-              <p className="text-red-300 text-sm">{error}</p>
+          <div className="mt-6 p-4 bg-red-900/40 border border-red-500/50 rounded-2xl text-center animate-shake">
+              <p className="text-red-300 text-sm font-bold">{error}</p>
           </div>
       )}
       
@@ -132,7 +142,8 @@ const DreamDictionary: React.FC<DreamDictionaryProps> = ({ initialSearchTerm = '
                   <button
                     key={i}
                     onClick={() => handleSymbolClick(s)}
-                    className="px-3 py-1 bg-gray-700/50 rounded-full text-white text-sm hover:bg-purple-500/50 hover:shadow-md hover:shadow-purple-500/20 transition-all duration-200 transform hover:-translate-y-px border border-white/5"
+                    disabled={!limitStatus.canUse}
+                    className={`px-3 py-1 bg-gray-700/50 rounded-full text-white text-sm transition-all duration-200 transform border border-white/5 ${limitStatus.canUse ? 'hover:bg-purple-500/50 hover:shadow-md hover:shadow-purple-500/20 hover:-translate-y-px' : 'opacity-50 grayscale'}`}
                   >
                     {s}
                   </button>
