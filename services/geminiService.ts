@@ -20,11 +20,17 @@ export class SafetyError extends Error {
     }
 }
 
+// API kalitni tekshirish uchun yordamchi funksiya
+export const isApiKeyValid = () => {
+    const apiKey = process.env.API_KEY;
+    return apiKey && apiKey !== 'undefined' && apiKey !== '' && apiKey.length > 10;
+};
+
 const getAiInstance = () => {
     const apiKey = process.env.API_KEY;
     
-    if (!apiKey || apiKey === 'undefined' || apiKey === '' || apiKey.length < 10) {
-        console.error("CRITICAL: API_KEY is missing or invalid in environment variables.");
+    if (!isApiKeyValid()) {
+        console.error("CRITICAL: API_KEY is missing or invalid.");
         throw new Error("API_KEY_NOT_CONFIGURED");
     }
     
@@ -60,28 +66,10 @@ export const interpretDream = async (dream: string, language: Language): Promise
         return JSON.parse(text);
     } catch (e: any) {
         console.error("Interpret Dream Error:", e);
-        
-        let errorMsg = "Tushni tahlil qilishda xatolik yuz berdi.";
-        
-        if (e.message === "API_KEY_NOT_CONFIGURED") {
-            errorMsg = "Xatolik: API kalit topilmadi. Hosting sozlamalarida API_KEY o'rnatilganini tekshiring.";
-        } else if (e.message.includes("403") || e.message.includes("429")) {
-            errorMsg = "API limiti tugadi yoki ruxsat berilmadi. Iltimos, birozdan so'ng urining.";
-        }
-        
-        return { 
-            generalMeaning: errorMsg, 
-            nextDayAdvice: "Xatolik tafsilotlari konsolda mavjud.", 
-            luckPercentage: 0, 
-            sentiment: 'neutral', 
-            psychologicalInsight: "AI xizmati bilan bog'lanib bo'lmadi.", 
-            story: "", 
-            offline: true 
-        };
+        throw e;
     }
 };
 
-// Boshqa barcha funksiyalarni ham shunday himoyalangan formatga o'tkazamiz
 export const getDreamSymbolMeaning = async (symbol: string, language: Language): Promise<DreamSymbolMeaning> => {
     try {
         const ai = getAiInstance();
@@ -104,25 +92,16 @@ export const getDreamSymbolMeaning = async (symbol: string, language: Language):
         });
         return JSON.parse(response.text || '{}');
     } catch (e) {
-        console.error("Symbol Meaning Error:", e);
-        return {
-            symbol: symbol,
-            islamic: "Ma'lumot yuklashda xatolik.",
-            psychological: "Xizmat vaqtincha ishlamayapti.",
-            lifeAdvice: "Iltimos, qayta urining."
-        };
+        throw e;
     }
 };
-
-// ... qolgan funksiyalar (translateForImage, generateImageFromDream va h.k.) o'zgarishsiz qoladi, 
-// lekin getAiInstance() orqali himoyalangan bo'ladi.
 
 export const translateForImage = async (prompt: string): Promise<string> => {
     try {
         const ai = getAiInstance();
         const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
-            contents: `Translate to English art prompt: "${prompt}". Return ONLY translation.`,
+            contents: `Translate the following dream visual description into a highly detailed English image prompt: "${prompt}". Return ONLY the translated English text.`,
         });
         return response.text?.trim() || prompt;
     } catch {
